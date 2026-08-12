@@ -97,7 +97,6 @@
     .wildcard { margin-top: 30px; padding: 20px; display: grid; grid-template-columns: auto 1fr; gap: 15px; border-radius: 18px; background: rgba(255,77,94,.075); border: 1px solid rgba(255,77,94,.18); }
     .wildcard-icon { font-size: 1.75rem; }
     .wildcard h3 { margin: 0 0 6px; } .wildcard p { margin: 0; color: #d2d2d7; line-height: 1.5; }
-    .wildcard-source { display: inline-block; margin-top: 10px; color: var(--amber); font-size: .84rem; }
     footer { margin-top: 54px; display: flex; justify-content: space-between; color: #6f727d; font-size: .77rem; }
     [hidden] { display: none !important; }
     @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
@@ -170,7 +169,7 @@
           <p class="tagline" id="tagline"></p>
           <div class="genres" id="genres" aria-label="Genres"></div>
           <p class="overview" id="overview"></p>
-          <aside class="wildcard"><div class="wildcard-icon" id="wildcardIcon" aria-hidden="true"></div><div><h3 id="wildcardTitle"></h3><p id="wildcardText"></p><a class="wildcard-source" id="wildcardSource" href="#" target="_blank" rel="noreferrer" hidden></a></div></aside>
+          <aside class="wildcard"><div class="wildcard-icon" id="wildcardIcon" aria-hidden="true"></div><div><h3 id="wildcardTitle"></h3><p id="wildcardText"></p></div></aside>
         </div>
       </article>
       <div class="result-actions">
@@ -235,7 +234,6 @@
       const poster = document.querySelector('#poster'); poster.replaceChildren(); const fallback = () => { poster.replaceChildren(); const tile = document.createElement('div'); tile.className = 'poster-fallback'; tile.textContent = '🎞️'; poster.appendChild(tile); };
       if (movie.posterUrl) { const image = new Image(); image.src = `${movie.posterUrl}?v=${encodeURIComponent(movie.id)}`; image.alt = `Poster for ${movie.title}`; image.onerror = fallback; poster.appendChild(image); } else fallback();
       document.querySelector('#wildcardIcon').textContent = movie.wildcard.icon; document.querySelector('#wildcardTitle').textContent = movie.wildcard.title; document.querySelector('#wildcardText').textContent = movie.wildcard.text;
-      const wildcardSource = document.querySelector('#wildcardSource'); wildcardSource.hidden = !movie.wildcard.sourceUrl; wildcardSource.href = movie.wildcard.sourceUrl || '#'; wildcardSource.textContent = movie.wildcard.sourceLabel ? `${movie.wildcard.sourceLabel} ↗` : 'View source ↗';
       const imdbLink = document.querySelector('#imdbLink'); imdbLink.hidden = !movie.imdbUrl; imdbLink.href = movie.imdbUrl || '#';
       result.classList.remove('show'); void result.offsetWidth; result.classList.add('show'); result.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
