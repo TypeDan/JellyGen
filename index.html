@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08090d">
+  <title>JellyGen</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #08090d;
+      --panel: rgba(19, 21, 29, .84);
+      --panel-strong: #151821;
+      --ink: #f6f3ea;
+      --muted: #999dab;
+      --line: rgba(255, 255, 255, .1);
+      --red: #ff4d5e;
+      --amber: #ffbd59;
+      --mint: #69e5c0;
+      --shadow: 0 30px 90px rgba(0, 0, 0, .45);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 0, rgba(255, 77, 94, .18), transparent 32rem),
+        radial-gradient(circle at 93% 25%, rgba(255, 189, 89, .08), transparent 34rem),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .28;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.1'/%3E%3C/svg%3E");
+      mix-blend-mode: soft-light;
+    }
+    button, input { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    .shell { width: min(1120px, calc(100% - 32px)); margin: auto; padding: 24px 0 52px; position: relative; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 54px; }
+    .brand { display: inline-flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; font-weight: 850; letter-spacing: -.04em; }
+    .mark { width: 39px; height: 39px; display: grid; place-items: center; border-radius: 13px; color: #090a0e; background: linear-gradient(135deg, var(--red), var(--amber)); box-shadow: 0 10px 35px rgba(255, 77, 94, .22); }
+    .mark svg { width: 24px; }
+    .library-status { border: 1px solid var(--line); background: rgba(255,255,255,.035); color: var(--muted); border-radius: 999px; padding: 9px 13px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 14px currentColor; }
+    .dot.ready { background: var(--mint); } .dot.error { background: var(--red); }
+
+    .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(310px, .75fr); gap: 56px; align-items: center; min-height: 430px; }
+    .eyebrow { margin: 0 0 18px; color: var(--red); text-transform: uppercase; letter-spacing: .16em; font-size: .73rem; font-weight: 800; }
+    h1 { margin: 0; max-width: 720px; font-size: clamp(3.3rem, 8.2vw, 7.2rem); line-height: .88; letter-spacing: -.075em; font-weight: 900; }
+    h1 span { color: transparent; -webkit-text-stroke: 1px rgba(246,243,234,.42); }
+    .picker { padding: 28px; border: 1px solid var(--line); border-radius: 27px; background: linear-gradient(145deg, rgba(29,32,43,.92), rgba(13,15,21,.88)); box-shadow: var(--shadow); }
+    .picker h2 { margin: 0 0 22px; font-size: 1.1rem; letter-spacing: -.02em; }
+    .year-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: end; }
+    .field label { display: block; margin: 0 0 8px; color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-spacing: .1em; font-weight: 750; }
+    .field input { width: 100%; height: 61px; padding: 0 14px; border: 1px solid var(--line); border-radius: 15px; outline: none; background: rgba(0,0,0,.2); color: var(--ink); font-size: 1.12rem; font-weight: 750; }
+    .field input:focus { border-color: var(--red); box-shadow: 0 0 0 4px rgba(255,77,94,.11); }
+    .range-dash { height: 61px; display: grid; place-items: center; color: var(--muted); }
+    .surprise { width: 100%; min-height: 60px; margin-top: 17px; border: 0; border-radius: 16px; color: #090a0e; background: linear-gradient(115deg, var(--red), var(--amber)); font-weight: 900; cursor: pointer; box-shadow: 0 15px 45px rgba(255,77,94,.18); transition: transform .18s ease, filter .18s ease; }
+    .surprise:hover { transform: translateY(-2px); filter: brightness(1.06); }
+    button:disabled { cursor: wait; opacity: .58; }
+    .message { min-height: 0; margin: 12px 0 0; color: #ff91a0; display: none; line-height: 1.45; }
+    .message.show { display: block; }
+
+    .genre-stage, .result-wrap { display: none; margin-top: 70px; scroll-margin-top: 20px; }
+    .genre-stage.show, .result-wrap.show { display: block; animation: rise .42s ease both; }
+    .result-label { display: flex; align-items: center; gap: 13px; margin: 0 0 13px; color: var(--muted); font-size: .72rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    .result-label::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+    .genre-shell { padding: 34px; border: 1px solid var(--line); border-radius: 29px; background: rgba(18,20,27,.82); box-shadow: var(--shadow); }
+    .genre-name { margin: 0 0 27px; font-size: clamp(2.7rem, 8vw, 6.4rem); line-height: .9; letter-spacing: -.065em; }
+    .wildcard-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
+    .wildcard-card { min-height: 190px; padding: 21px; border: 1px solid var(--line); border-radius: 20px; text-align: left; color: var(--ink); background: rgba(255,255,255,.025); cursor: pointer; display: grid; align-content: start; gap: 11px; transition: transform .18s ease, border-color .18s ease, background .18s ease; }
+    .wildcard-card:hover { transform: translateY(-4px); border-color: rgba(255,189,89,.5); background: rgba(255,189,89,.055); }
+    .wildcard-card .icon { font-size: 1.8rem; }
+    .wildcard-card strong { font-size: 1rem; }
+    .wildcard-card > span:last-child { color: var(--muted); font-size: .91rem; line-height: 1.48; }
+    .genre-actions, .result-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+    .again { border: 1px solid var(--line); border-radius: 999px; padding: 11px 16px; background: rgba(255,255,255,.035); color: var(--ink); text-decoration: none; cursor: pointer; }
+    .again.primary { border-color: transparent; background: var(--ink); color: #0a0b0f; font-weight: 800; }
+
+    .movie-card { display: grid; grid-template-columns: minmax(260px, .72fr) 1.35fr; overflow: hidden; border: 1px solid var(--line); border-radius: 29px; background: var(--panel-strong); box-shadow: var(--shadow); }
+    .poster { min-height: 510px; background: #0d0f14; }
+    .poster img { width: 100%; height: 100%; min-height: 510px; object-fit: cover; display: block; }
+    .poster-fallback { min-height: 510px; display: grid; place-items: center; font-size: 4rem; }
+    .movie-info { padding: clamp(26px, 5vw, 56px); }
+    .meta-line, .genres { display: flex; flex-wrap: wrap; gap: 8px; }
+    .meta-line span, .genre { color: var(--muted); padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: .76rem; }
+    .movie-title { margin: 20px 0 10px; font-size: clamp(2.5rem, 6vw, 5.7rem); line-height: .92; letter-spacing: -.06em; }
+    .tagline { color: var(--amber); font-weight: 680; }
+    .overview { color: #c6c7ce; line-height: 1.72; }
+    .wildcard { margin-top: 30px; padding: 20px; display: grid; grid-template-columns: auto 1fr; gap: 15px; border-radius: 18px; background: rgba(255,77,94,.075); border: 1px solid rgba(255,77,94,.18); }
+    .wildcard-icon { font-size: 1.75rem; }
+    .wildcard h3 { margin: 0 0 6px; } .wildcard p { margin: 0; color: #d2d2d7; line-height: 1.5; }
+    .wildcard-source { display: inline-block; margin-top: 10px; color: var(--amber); font-size: .84rem; }
+    footer { margin-top: 54px; display: flex; justify-content: space-between; color: #6f727d; font-size: .77rem; }
+    [hidden] { display: none !important; }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+
+    @media (max-width: 820px) {
+      header { margin-bottom: 38px; }
+      .hero { grid-template-columns: 1fr; gap: 35px; min-height: 0; }
+      .wildcard-grid { grid-template-columns: 1fr; }
+      .wildcard-card { min-height: 0; }
+      .movie-card { grid-template-columns: 1fr; }
+      .poster, .poster img, .poster-fallback { min-height: 420px; max-height: 72vh; }
+    }
+    @media (max-width: 560px) {
+      .shell { width: min(100% - 22px, 1120px); padding-top: 14px; }
+      header { align-items: flex-start; }
+      .library-status { max-width: 58%; font-size: .72rem; }
+      h1 { font-size: clamp(3.05rem, 17vw, 5rem); }
+      .picker, .genre-shell { padding: 21px; border-radius: 22px; }
+      .year-grid { gap: 7px; }
+      .field input { padding: 0 9px; }
+      .movie-info { padding: 25px 20px; }
+      .result-actions { justify-content: stretch; }
+      .result-actions .again { flex: 1 1 auto; text-align: center; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <a class="brand" href="/" aria-label="JellyGen home">
+        <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 18.2c-1.8-.9-3-2.8-3-5.1C4 8.6 7.5 5 12 5s8 3.6 8 8.1c0 2.3-1.2 4.2-3 5.1-.7.3-1.2-.1-1.7-.7-.6-.7-1.1-.7-1.7 0-.9 1-2.3 1-3.2 0-.6-.7-1.1-.7-1.7 0-.5.6-1 .9-1.7.7Z" fill="currentColor"/><circle cx="9" cy="12" r="1" fill="#08090d"/><circle cx="15" cy="12" r="1" fill="#08090d"/></svg></span>
+        JellyGen
+      </a>
+      <button class="library-status" id="statusButton" type="button" title="Check Jellyfin again"><span class="dot" id="statusDot"></span><span id="statusText">Connecting…</span></button>
+    </header>
+
+    <section class="hero" aria-labelledby="mainTitle">
+      <div>
+        <p class="eyebrow">One genre. Three strange clues.</p>
+        <h1 id="mainTitle">Pick a year range.<br><span>Find tonight’s film.</span></h1>
+      </div>
+      <form class="picker" id="pickerForm">
+        <h2>Choose the years</h2>
+        <div class="year-grid">
+          <div class="field"><label for="startYear">From</label><input id="startYear" name="startYear" type="number" inputmode="numeric" min="1888" max="2100" value="1980" required></div>
+          <span class="range-dash" aria-hidden="true">→</span>
+          <div class="field"><label for="endYear">To</label><input id="endYear" name="endYear" type="number" inputmode="numeric" min="1888" max="2100" value="1999" required></div>
+        </div>
+        <button class="surprise" id="surpriseButton" type="submit">Draw a genre</button>
+        <p class="message" id="errorMessage" role="alert"></p>
+      </form>
+    </section>
+
+    <section class="genre-stage" id="genreStage" aria-live="polite" aria-labelledby="genreName">
+      <p class="result-label">Genre drawn</p>
+      <div class="genre-shell">
+        <h2 class="genre-name" id="genreName"></h2>
+        <div class="wildcard-grid" id="wildcardGrid"></div>
+        <p class="message" id="stageError" role="alert"></p>
+        <div class="genre-actions"><button class="again" id="drawAgainButton" type="button">Try another genre ↻</button></div>
+      </div>
+    </section>
+
+    <section class="result-wrap" id="result" aria-live="polite" aria-labelledby="movieTitle">
+      <p class="result-label"><span id="matchCount">Your film</span></p>
+      <article class="movie-card">
+        <div class="poster" id="poster"></div>
+        <div class="movie-info">
+          <div class="meta-line" id="metaLine"></div>
+          <h2 class="movie-title" id="movieTitle"></h2>
+          <p class="tagline" id="tagline"></p>
+          <div class="genres" id="genres" aria-label="Genres"></div>
+          <p class="overview" id="overview"></p>
+          <aside class="wildcard"><div class="wildcard-icon" id="wildcardIcon" aria-hidden="true"></div><div><h3 id="wildcardTitle"></h3><p id="wildcardText"></p><a class="wildcard-source" id="wildcardSource" href="#" target="_blank" rel="noreferrer" hidden></a></div></aside>
+        </div>
+      </article>
+      <div class="result-actions">
+        <a class="again" id="imdbLink" href="#" target="_blank" rel="noreferrer" hidden>Open on IMDb ↗</a>
+        <button class="again" id="changeWildcardButton" type="button">Choose another clue</button>
+        <button class="again primary" id="newGenreButton" type="button">Start again ↻</button>
+      </div>
+    </section>
+    <footer><span>Powered by Jellyfin</span><span>Jellyfin connected</span></footer>
+  </main>
+
+  <script>
+    const form = document.querySelector('#pickerForm');
+    const startYear = document.querySelector('#startYear');
+    const endYear = document.querySelector('#endYear');
+    const button = document.querySelector('#surpriseButton');
+    const genreStage = document.querySelector('#genreStage');
+    const wildcardGrid = document.querySelector('#wildcardGrid');
+    const result = document.querySelector('#result');
+    const errorMessage = document.querySelector('#errorMessage');
+    const stageError = document.querySelector('#stageError');
+    const statusDot = document.querySelector('#statusDot');
+    const statusText = document.querySelector('#statusText');
+    let libraryMeta = null;
+    let currentDraw = null;
+
+    function setStatus(kind, text) { statusDot.className = `dot ${kind || ''}`; statusText.textContent = text; }
+    function showError(message, target = errorMessage) { target.textContent = message; target.classList.add('show'); }
+    function clearErrors() { for (const target of [errorMessage, stageError]) { target.textContent = ''; target.classList.remove('show'); } }
+    function selectedRange() {
+      const from = Number(startYear.value); const to = Number(endYear.value);
+      if (!Number.isInteger(from) || !Number.isInteger(to) || from > to) throw new Error('The start year needs to be before the end year.');
+      return { startYear: from, endYear: to };
+    }
+    async function postJson(url, payload) {
+      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      let data; try { data = await response.json(); } catch { data = {}; }
+      if (!response.ok) throw new Error(data.error || 'Jellyfin did not answer.');
+      return data;
+    }
+    function addMeta(text) { if (!text) return; const span = document.createElement('span'); span.textContent = text; document.querySelector('#metaLine').appendChild(span); }
+    function renderWildcards(wildcards) {
+      wildcardGrid.replaceChildren();
+      for (const wildcard of wildcards) {
+        const card = document.createElement('button'); card.className = 'wildcard-card'; card.type = 'button'; card.dataset.wildcard = wildcard.id; card.setAttribute('aria-label', `${wildcard.title}: ${wildcard.description}`);
+        const icon = document.createElement('span'); icon.className = 'icon'; icon.textContent = wildcard.icon;
+        const title = document.createElement('strong'); title.textContent = wildcard.title;
+        const description = document.createElement('span'); description.textContent = wildcard.description;
+        card.append(icon, title, description); card.addEventListener('click', () => pickWithWildcard(wildcard.id)); wildcardGrid.appendChild(card);
+      }
+    }
+    function renderGenre(data, range) {
+      currentDraw = { ...range, drawId: data.drawId, genre: data.genre, wildcards: data.wildcards };
+      document.querySelector('#genreName').textContent = data.genre; renderWildcards(data.wildcards); result.classList.remove('show'); genreStage.classList.remove('show'); void genreStage.offsetWidth; genreStage.classList.add('show'); genreStage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    function renderMovie(data) {
+      const movie = data.movie;
+      document.querySelector('#matchCount').textContent = `${data.genre} · ${data.matchingMovies.toLocaleString()} possible film${data.matchingMovies === 1 ? '' : 's'}`;
+      document.querySelector('#movieTitle').textContent = movie.title; document.querySelector('#overview').textContent = movie.overview;
+      const tagline = document.querySelector('#tagline'); tagline.textContent = movie.tagline || ''; tagline.hidden = !movie.tagline;
+      document.querySelector('#metaLine').replaceChildren(); addMeta(movie.year ? String(movie.year) : 'Year unknown'); addMeta(movie.runtimeMinutes ? `${movie.runtimeMinutes} min` : null); addMeta(movie.rating ? `★ ${Number(movie.rating).toFixed(1)}` : null); addMeta(movie.directors?.length ? `Dir. ${movie.directors.join(' & ')}` : null);
+      const genres = document.querySelector('#genres'); genres.replaceChildren(); for (const genre of movie.genres) { const badge = document.createElement('span'); badge.className = 'genre'; badge.textContent = genre; genres.appendChild(badge); }
+      const poster = document.querySelector('#poster'); poster.replaceChildren(); const fallback = () => { poster.replaceChildren(); const tile = document.createElement('div'); tile.className = 'poster-fallback'; tile.textContent = '🎞️'; poster.appendChild(tile); };
+      if (movie.posterUrl) { const image = new Image(); image.src = `${movie.posterUrl}?v=${encodeURIComponent(movie.id)}`; image.alt = `Poster for ${movie.title}`; image.onerror = fallback; poster.appendChild(image); } else fallback();
+      document.querySelector('#wildcardIcon').textContent = movie.wildcard.icon; document.querySelector('#wildcardTitle').textContent = movie.wildcard.title; document.querySelector('#wildcardText').textContent = movie.wildcard.text;
+      const wildcardSource = document.querySelector('#wildcardSource'); wildcardSource.hidden = !movie.wildcard.sourceUrl; wildcardSource.href = movie.wildcard.sourceUrl || '#'; wildcardSource.textContent = movie.wildcard.sourceLabel ? `${movie.wildcard.sourceLabel} ↗` : 'View source ↗';
+      const imdbLink = document.querySelector('#imdbLink'); imdbLink.hidden = !movie.imdbUrl; imdbLink.href = movie.imdbUrl || '#';
+      result.classList.remove('show'); void result.offsetWidth; result.classList.add('show'); result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    async function drawGenre() {
+      clearErrors(); let range; try { range = selectedRange(); } catch (error) { showError(error.message); return; }
+      button.disabled = true; button.textContent = 'Drawing…';
+      try { renderGenre(await postJson('/api/genre', range), range); } catch (error) { showError(error.message || 'Could not draw a genre.'); }
+      finally { button.disabled = false; button.textContent = 'Draw a genre'; }
+    }
+    async function pickWithWildcard(wildcard) {
+      if (!currentDraw) return; clearErrors(); for (const card of wildcardGrid.querySelectorAll('button')) card.disabled = true;
+      try { renderMovie(await postJson('/api/pick', { drawId: currentDraw.drawId, wildcard })); }
+      catch (error) { showError(error.message || 'That clue could not choose a film.', stageError); }
+      finally { for (const card of wildcardGrid.querySelectorAll('button')) card.disabled = false; }
+    }
+    form.addEventListener('submit', event => { event.preventDefault(); drawGenre(); });
+    document.querySelector('#drawAgainButton').addEventListener('click', drawGenre); document.querySelector('#newGenreButton').addEventListener('click', drawGenre);
+    document.querySelector('#changeWildcardButton').addEventListener('click', () => { result.classList.remove('show'); genreStage.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    async function loadMeta(retries = 2) {
+      setStatus('', 'Connecting…'); let lastError;
+      for (let attempt = 0; attempt <= retries; attempt += 1) {
+        try { const response = await fetch('/api/meta', { cache: 'no-store' }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Jellyfin unavailable'); libraryMeta = data; startYear.min = data.minYear; startYear.max = data.maxYear; endYear.min = data.minYear; endYear.max = data.maxYear; setStatus('ready', `${data.movieCount.toLocaleString()} films · ${data.minYear}–${data.maxYear}`); return; }
+        catch (error) { lastError = error; if (attempt < retries) await new Promise(resolve => setTimeout(resolve, 800 * (attempt + 1))); }
+      }
+      setStatus('error', 'Jellyfin needs attention'); showError(lastError?.message || 'Could not connect to Jellyfin.');
+    }
+    document.querySelector('#statusButton').addEventListener('click', () => loadMeta(2)); document.addEventListener('visibilitychange', () => { if (!document.hidden && !libraryMeta) loadMeta(1); }); loadMeta(2);
+  </script>
+</body>
+</html>

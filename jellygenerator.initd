@@ -1,0 +1,27 @@
+#!/sbin/openrc-run
+
+name="JellyGenerator"
+description="Random movie picker backed by Jellyfin"
+
+supervisor="supervise-daemon"
+command="/usr/bin/python3"
+command_args="/opt/jellygenerator/app.py"
+command_user="jellygenerator:jellygenerator"
+directory="/opt/jellygenerator"
+output_log="/var/log/jellygenerator.log"
+error_log="/var/log/jellygenerator.err"
+respawn_delay=2
+respawn_max=0
+
+[ -r /etc/jellygenerator/enrichment.env ] && . /etc/jellygenerator/enrichment.env
+export JELLYFIN_URL JELLYFIN_API_KEY PORT CACHE_SECONDS FACT_DB_PATH ENRICHMENT_TOKEN
+
+depend() {
+  need net
+  after firewall
+}
+
+start_pre() {
+  checkpath --file --mode 0640 --owner jellygenerator:root "$output_log"
+  checkpath --file --mode 0640 --owner jellygenerator:root "$error_log"
+}
