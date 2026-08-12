@@ -41,10 +41,6 @@ class JellyGeneratorTests(unittest.TestCase):
         self.addCleanup(self.fact_path_patch.stop)
         app._draws.clear()
         app._recent_clues.clear()
-        app._trivia_cache.clear()
-        self.trivia_patch = patch.object(app, "fetch_wikidata_facts", return_value={})
-        self.mock_trivia = self.trivia_patch.start()
-        self.addCleanup(self.trivia_patch.stop)
 
     def test_movie_year_prefers_production_year(self):
         self.assertEqual(app.movie_year(MOVIES[0]), 1987)
@@ -71,22 +67,6 @@ class JellyGeneratorTests(unittest.TestCase):
         self.assertIn("voice", categories)
         self.assertIn("actor_once", categories)
 
-    def test_wikidata_rows_create_sourced_real_world_fact(self):
-        rows = [
-            {
-                "imdb": {"value": "tt1234567"},
-                "film": {"value": "http://www.wikidata.org/entity/Q100"},
-                "kind": {"value": "occupation"},
-                "subject": {"value": "http://www.wikidata.org/entity/Q200"},
-                "subjectLabel": {"value": "Example Performer"},
-                "value": {"value": "http://www.wikidata.org/entity/Q11631"},
-                "valueLabel": {"value": "astronaut"},
-            }
-        ]
-        facts = app.wikidata_rows_to_facts(rows)["tt1234567"]
-        self.assertIn("astronaut", facts[0]["text"])
-        self.assertEqual(facts[0]["sourceUrl"], "https://www.wikidata.org/wiki/Q200")
-
     def test_researched_fact_is_stored_and_prioritised(self):
         payload = {
             "clueTitle": "A very unlikely rehearsal",
@@ -101,6 +81,7 @@ class JellyGeneratorTests(unittest.TestCase):
 
         draw_id, wildcards = app.create_hidden_draw("Comedy", [MOVIES[0]], [MOVIES[0]], MOVIES)
         self.assertEqual(wildcards[0]["description"], payload["clueText"])
+        self.assertNotIn("example.com", str(wildcards))
         _, revealed, _, _ = app.reveal_hidden_wildcard(draw_id, wildcards[0]["id"])
         self.assertEqual(revealed["sourceUrl"], payload["sourceUrl"])
         self.assertNotIn("_researchId", revealed)
@@ -187,40 +168,7 @@ class JellyGeneratorTests(unittest.TestCase):
         self.assertEqual(pending["pendingMovieCount"], 1)
         self.assertEqual(pending["movies"][0]["movieKey"], app.movie_research_key(MOVIES[1]))
 
-    def test_distressing_conviction_is_not_used_as_a_fun_clue(self):
-        rows = [
-            {
-                "imdb": {"value": "tt1234567"},
-                "film": {"value": "http://www.wikidata.org/entity/Q100"},
-                "kind": {"value": "conviction"},
-                "subject": {"value": "http://www.wikidata.org/entity/Q200"},
-                "subjectLabel": {"value": "Example Performer"},
-                "value": {"value": "http://www.wikidata.org/entity/Q300"},
-                "valueLabel": {"value": "sexual assault"},
-            }
-        ]
-        self.assertEqual(app.wikidata_rows_to_facts(rows), {})
-
-    def test_source_is_kept_private_until_reveal(self):
-        sourced = app.fact_card(
-            "occupation",
-            "Cast member Example Performer is also listed as an astronaut—not only a performer.",
-            source_url="https://www.wikidata.org/wiki/Q200",
-            source_label="Check the Wikidata biography",
-        )
-        self.mock_trivia.return_value = {"tt1234567": [sourced]}
-        draw_id, wildcards = app.create_hidden_draw("Comedy", [MOVIES[0]], [MOVIES[0]], MOVIES)
-        self.assertNotIn("wikidata.org", str(wildcards).casefold())
-        _, fact, _, _ = app.reveal_hidden_wildcard(draw_id, wildcards[0]["id"])
-        self.assertEqual(fact["sourceUrl"], "https://www.wikidata.org/wiki/Q200")
-
     def test_one_draw_does_not_repeat_the_same_clue(self):
-        sourced = app.fact_card(
-            "occupation",
-            "Cast member Example Performer is also listed as an astronaut—not only a performer.",
-            source_url="https://www.wikidata.org/wiki/Q200",
-        )
-        self.mock_trivia.return_value = {"tt1234567": [sourced]}
         second = {
             **MOVIES[0],
             "Id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -229,6 +177,11 @@ class JellyGeneratorTests(unittest.TestCase):
         _, wildcards = app.create_hidden_draw("Comedy", [MOVIES[0], second], [MOVIES[0], second], MOVIES)
         descriptions = [wildcard["description"] for wildcard in wildcards]
         self.assertEqual(len(descriptions), len(set(descriptions)))
+
+    def test_creating_a_draw_does_not_make_an_external_request(self):
+        with patch.object(app, "urlopen") as mocked_urlopen:
+            app.create_hidden_draw("Comedy", [MOVIES[0]], [MOVIES[0]], MOVIES)
+        mocked_urlopen.assert_not_called()
 
     def test_hidden_wildcards_do_not_expose_movie_identity(self):
         second = {

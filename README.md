@@ -1,6 +1,6 @@
 # JellyGen
 
-JellyGen is a dependency-free Python web app for settling movie night from a Jellyfin library. The user chooses a year range, the generator draws a genre, and it creates a fresh set of film-specific wildcard clues without revealing the films. It prioritises sourced real-world oddities from Wikidata—unexpected cast careers, sporting or military history, unusual source material, production journeys, records, and carefully filtered off-screen incidents—then falls back to Jellyfin metadata when needed. The source link stays hidden until the chosen film is revealed. Opaque, short-lived server-side draw IDs keep movie identities out of the pre-reveal response, and the poster proxy never exposes the Jellyfin API key.
+JellyGen is a dependency-free Python web app for settling movie night from a Jellyfin library. The user chooses a year range, the generator draws a genre, and it creates a fresh set of film-specific wildcard clues without revealing the films. It prioritises sourced facts researched and saved ahead of time from IMDb trivia, interviews, studio material, film institutes, production documents, and established publications, then falls back to metadata already held by Jellyfin. Creating a draw makes no live request to an external trivia service. Opaque, short-lived server-side draw IDs keep movie identities out of the pre-reveal response, and the poster proxy never exposes the Jellyfin API key.
 
 ## Configuration
 
@@ -30,7 +30,7 @@ IMDb title and trivia pages are accepted for straightforward production and cast
 
 ## Source
 
-- `app.py`: HTTP server, Jellyfin and trivia caches, picker, poster proxy, and wildcards
+- `app.py`: HTTP server, Jellyfin cache, researched-fact database, picker, poster proxy, and wildcards
 - `index.html`: responsive single-page interface
 - `jellygenerator.initd`: OpenRC service definition
 - `jellygen_enricher.py`: protected client for scheduled fact research

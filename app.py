@@ -13,7 +13,6 @@ import sqlite3
 import threading
 import time
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -30,16 +29,12 @@ JELLYFIN_URL = os.environ.get("JELLYFIN_URL", "http://localhost:8096").rstrip("/
 JELLYFIN_API_KEY = os.environ.get("JELLYFIN_API_KEY", "")
 PORT = int(os.environ.get("PORT", "8787"))
 CACHE_SECONDS = int(os.environ.get("CACHE_SECONDS", "300"))
-WIKIDATA_CACHE_SECONDS = int(os.environ.get("WIKIDATA_CACHE_SECONDS", "86400"))
-WIKIDATA_SPARQL_URL = "https://query.wikidata.org/sparql"
 FACT_DB_PATH = Path(os.environ.get("FACT_DB_PATH", "/var/lib/jellygenerator/facts.db"))
 ENRICHMENT_TOKEN = os.environ.get("ENRICHMENT_TOKEN", "")
 MAX_BODY_BYTES = 16_384
 MAX_POSTER_BYTES = 12 * 1024 * 1024
-MAX_TRIVIA_BYTES = 2 * 1024 * 1024
 ITEM_ID_RE = re.compile(r"^[A-Fa-f0-9-]{16,64}$")
 IMDB_ID_RE = re.compile(r"^tt\d{5,12}$")
-WIKIDATA_ENTITY_RE = re.compile(r"^https?://www\.wikidata\.org/entity/(Q\d+)$")
 RNG = random.SystemRandom()
 
 _cache_lock = threading.Lock()
@@ -47,8 +42,6 @@ _movie_cache: dict[str, Any] = {"expires": 0.0, "items": []}
 _draw_lock = threading.Lock()
 _draws: dict[str, dict[str, Any]] = {}
 _recent_clues: dict[str, set[str]] = {}
-_trivia_cache_lock = threading.Lock()
-_trivia_cache: dict[str, dict[str, Any]] = {}
 _fact_db_lock = threading.Lock()
 DRAW_TTL_SECONDS = 30 * 60
 MAX_ACTIVE_DRAWS = 200
@@ -72,34 +65,7 @@ FACT_STYLE = {
     "studio": ("Studio rarity", "🎞️"),
     "cast": ("Cast curiosity", "🎭"),
     "age": ("Time capsule", "🕰️"),
-    "conviction": ("Off-screen trouble", "⚖️"),
-    "occupation": ("Secret second life", "🪪"),
-    "military": ("Before the spotlight", "🪖"),
-    "sports_team": ("Surprise team sheet", "🏟️"),
-    "sport": ("Unexpected sporting life", "🥊"),
-    "participant_in": ("History crossover", "🧭"),
-    "record_held": ("Record breaker", "🏆"),
-    "position_held": ("Unexpected office", "🏛️"),
-    "based_on": ("Hidden source material", "📚"),
-    "inspired_by": ("Strange inspiration", "💡"),
-    "dedicated_to": ("Personal dedication", "🕯️"),
-    "filming_location": ("Unexpected journey", "🗺️"),
     "researched": ("Stranger than fiction", "🔎"),
-}
-
-EXTERNAL_FACT_CATEGORIES = {
-    "conviction",
-    "occupation",
-    "military",
-    "sports_team",
-    "sport",
-    "participant_in",
-    "record_held",
-    "position_held",
-    "based_on",
-    "inspired_by",
-    "dedicated_to",
-    "filming_location",
 }
 
 PREFERRED_LOCAL_FACT_CATEGORIES = {
@@ -111,22 +77,6 @@ PREFERRED_LOCAL_FACT_CATEGORIES = {
     "premiere",
     "original_title",
 }
-
-# Exact Wikidata occupations which make an actor's biography unusually useful as a clue.
-INTERESTING_OCCUPATION_IDS = (
-    "Q11631",     # astronaut
-    "Q82955",     # politician
-    "Q13474373",  # professional wrestler
-    "Q11338576",  # boxer
-    "Q40348",     # lawyer
-    "Q39631",     # physician
-    "Q189290",    # military officer
-    "Q11607585",  # mixed martial arts fighter
-    "Q384593",    # police officer
-    "Q27503001",  # professional athlete
-    "Q4991371",   # soldier
-    "Q16533",     # judge
-)
 
 DISTRESSING_CONVICTION_TERMS = (
     "abuse",
@@ -533,279 +483,6 @@ def store_researched_fact(movie: dict[str, Any], payload: dict[str, Any]) -> boo
         return cursor.rowcount == 1
 
 
-def wikidata_page(entity_uri: str | None) -> str | None:
-    match = WIKIDATA_ENTITY_RE.fullmatch(entity_uri or "")
-    return f"https://www.wikidata.org/wiki/{match.group(1)}" if match else None
-
-
-def binding_value(row: dict[str, Any], key: str) -> str | None:
-    binding = row.get(key)
-    value = binding.get("value") if isinstance(binding, dict) else None
-    return value.strip() if isinstance(value, str) and value.strip() else None
-
-
-def wikidata_rows_to_facts(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, str]]]:
-    facts: dict[str, list[dict[str, str]]] = {}
-    filming_locations: dict[str, list[tuple[str, str | None]]] = {}
-    film_sources: dict[str, str] = {}
-    seen: dict[str, set[tuple[str, str]]] = {}
-
-    for row in rows:
-        imdb_id = binding_value(row, "imdb")
-        kind = binding_value(row, "kind")
-        value = binding_value(row, "valueLabel")
-        film_source = wikidata_page(binding_value(row, "film"))
-        if not imdb_id or not IMDB_ID_RE.fullmatch(imdb_id) or not kind or not value or not film_source:
-            continue
-        if re.fullmatch(r"Q\d+", value):
-            continue
-
-        film_sources[imdb_id] = film_source
-        if kind == "filming_location":
-            locations = filming_locations.setdefault(imdb_id, [])
-            location = (value, binding_value(row, "locationCountryLabel"))
-            if location not in locations:
-                locations.append(location)
-            continue
-
-        subject = binding_value(row, "subjectLabel")
-        subject_source = wikidata_page(binding_value(row, "subject"))
-        card: dict[str, str] | None = None
-        if kind == "conviction" and subject and subject_source:
-            if not any(term in value.casefold() for term in DISTRESSING_CONVICTION_TERMS):
-                card = fact_card(
-                    "conviction",
-                    f"Cast member {subject} has a documented conviction for {value}.",
-                    source_url=subject_source,
-                    source_label="Check the referenced Wikidata record",
-                )
-        elif kind == "occupation" and subject and subject_source:
-            article = "an" if value.casefold()[:1] in "aeiou" else "a"
-            card = fact_card(
-                "occupation",
-                f"Cast member {subject} is also listed as {article} {value}—not only a performer.",
-                source_url=subject_source,
-                source_label="Check the Wikidata biography",
-            )
-        elif kind == "military" and subject and subject_source:
-            card = fact_card(
-                "military",
-                f"Cast member {subject} served with {value} before or alongside life on screen.",
-                source_url=subject_source,
-                source_label="Check the Wikidata biography",
-            )
-        elif kind == "sports_team" and subject and subject_source:
-            card = fact_card(
-                "sports_team",
-                f"Cast member {subject} is documented as a former member of {value}.",
-                source_url=subject_source,
-                source_label="Check the Wikidata biography",
-            )
-        elif kind == "sport" and subject and subject_source:
-            card = fact_card(
-                "sport",
-                f"Cast member {subject} is also documented in connection with {value} as a sport.",
-                source_url=subject_source,
-                source_label="Check the Wikidata biography",
-            )
-        elif kind == "participant_in" and subject and subject_source:
-            card = fact_card(
-                "participant_in",
-                f"Cast member {subject} took part in {value} away from the film set.",
-                source_url=subject_source,
-                source_label="Check the Wikidata biography",
-            )
-        elif kind == "record_held" and subject and subject_source:
-            card = fact_card(
-                "record_held",
-                f"Cast member {subject} is documented as a record holder for {value}.",
-                source_url=subject_source,
-                source_label="Check the Wikidata biography",
-            )
-        elif kind == "position_held" and subject and subject_source:
-            card = fact_card(
-                "position_held",
-                f"Cast member {subject} has also held the position of {value}.",
-                source_url=subject_source,
-                source_label="Check the Wikidata biography",
-            )
-        elif kind == "based_on":
-            card = fact_card(
-                "based_on",
-                f"Underneath the film is an unexpected source: {value}.",
-                source_url=film_source,
-                source_label="Check the film's Wikidata record",
-            )
-        elif kind == "inspired_by":
-            card = fact_card(
-                "inspired_by",
-                f"Its documented inspiration is {value}.",
-                source_url=film_source,
-                source_label="Check the film's Wikidata record",
-            )
-        elif kind == "dedicated_to":
-            card = fact_card(
-                "dedicated_to",
-                f"The film carries a dedication to {value}.",
-                source_url=film_source,
-                source_label="Check the film's Wikidata record",
-            )
-        if card is not None:
-            signature = (card["category"], card["text"])
-            item_seen = seen.setdefault(imdb_id, set())
-            if signature not in item_seen:
-                facts.setdefault(imdb_id, []).append(card)
-                item_seen.add(signature)
-
-    for imdb_id, locations in filming_locations.items():
-        if len(locations) < 2:
-            continue
-        pairs = [
-            (first, second)
-            for index, first in enumerate(locations)
-            for second in locations[index + 1:]
-            if first[0] != second[1] and second[0] != first[1]
-        ]
-        if not pairs:
-            continue
-        cross_country_pairs = [
-            pair
-            for pair in pairs
-            if pair[0][1] and pair[1][1] and pair[0][1] != pair[1][1]
-        ]
-        first, second = RNG.choice(cross_country_pairs or pairs)
-        text = f"Its credited filming trail stretches from {first[0]} to {second[0]}."
-        facts.setdefault(imdb_id, []).append(
-            fact_card(
-                "filming_location",
-                text,
-                source_url=film_sources[imdb_id],
-                source_label="Check the film's Wikidata record",
-            )
-        )
-
-    return facts
-
-
-def query_wikidata(imdb_ids: list[str]) -> list[dict[str, Any]]:
-    values = " ".join(f'"{imdb_id}"' for imdb_id in imdb_ids if IMDB_ID_RE.fullmatch(imdb_id))
-    occupation_values = " ".join(f"wd:{entity_id}" for entity_id in INTERESTING_OCCUPATION_IDS)
-    query = f"""
-SELECT ?imdb ?film ?kind ?subject ?subjectLabel ?value ?valueLabel ?locationCountryLabel WHERE {{
-  VALUES ?imdb {{ {values} }}
-  ?film wdt:P345 ?imdb.
-  {{ ?film wdt:P144 ?value. BIND("based_on" AS ?kind) }}
-  UNION {{
-    ?film wdt:P915 ?value.
-    OPTIONAL {{ ?value wdt:P17 ?locationCountry. }}
-    BIND("filming_location" AS ?kind)
-  }}
-  UNION {{ ?film wdt:P941 ?value. BIND("inspired_by" AS ?kind) }}
-  UNION {{ ?film wdt:P825 ?value. BIND("dedicated_to" AS ?kind) }}
-  UNION {{
-    ?film wdt:P161 ?subject.
-    ?subject p:P1399 ?statement.
-    ?statement ps:P1399 ?value; wikibase:rank ?rank; prov:wasDerivedFrom ?reference.
-    FILTER(?rank != wikibase:DeprecatedRank)
-    BIND("conviction" AS ?kind)
-  }}
-  UNION {{
-    ?film wdt:P161 ?subject.
-    ?subject wdt:P106 ?value.
-    VALUES ?value {{ {occupation_values} }}
-    BIND("occupation" AS ?kind)
-  }}
-  UNION {{
-    ?film wdt:P161 ?subject.
-    ?subject wdt:P241 ?value.
-    BIND("military" AS ?kind)
-  }}
-  UNION {{
-    ?film wdt:P161 ?subject.
-    ?subject wdt:P54 ?value.
-    BIND("sports_team" AS ?kind)
-  }}
-  UNION {{
-    ?film wdt:P161 ?subject.
-    ?subject wdt:P641 ?value.
-    BIND("sport" AS ?kind)
-  }}
-  UNION {{
-    ?film wdt:P161 ?subject.
-    ?subject wdt:P1344 ?value.
-    BIND("participant_in" AS ?kind)
-  }}
-  UNION {{
-    ?film wdt:P161 ?subject.
-    ?subject wdt:P1000 ?value.
-    BIND("record_held" AS ?kind)
-  }}
-  UNION {{
-    ?film wdt:P161 ?subject.
-    ?subject wdt:P39 ?value.
-    BIND("position_held" AS ?kind)
-  }}
-  SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }}
-}}
-LIMIT 600
-"""
-    body = urlencode({"query": query, "format": "json"}).encode()
-    request = Request(
-        WIKIDATA_SPARQL_URL,
-        data=body,
-        headers={
-            "Accept": "application/sparql-results+json",
-            "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
-            "User-Agent": "JellyGenerator/2.0 (personal movie picker; http://localhost:8787)",
-        },
-        method="POST",
-    )
-    with urlopen(request, timeout=8) as response:
-        payload = response.read(MAX_TRIVIA_BYTES + 1)
-    if len(payload) > MAX_TRIVIA_BYTES:
-        raise ValueError("The trivia response was too large.")
-    parsed = json.loads(payload)
-    rows = parsed.get("results", {}).get("bindings", [])
-    if not isinstance(rows, list):
-        raise ValueError("The trivia response was invalid.")
-    return rows
-
-
-def fetch_wikidata_facts(movies: list[dict[str, Any]]) -> dict[str, list[dict[str, str]]]:
-    imdb_ids = list(dict.fromkeys(filter(None, (movie_imdb_id(movie) for movie in movies))))
-    now = time.monotonic()
-    result: dict[str, list[dict[str, str]]] = {}
-    missing: list[str] = []
-    with _trivia_cache_lock:
-        for imdb_id in imdb_ids:
-            cached = _trivia_cache.get(imdb_id)
-            if cached and cached["expires"] > now:
-                result[imdb_id] = cached["facts"]
-            else:
-                missing.append(imdb_id)
-
-    if missing:
-        chunks = [missing[index:index + 2] for index in range(0, len(missing), 2)]
-        with ThreadPoolExecutor(max_workers=min(3, len(chunks))) as executor:
-            futures = {executor.submit(query_wikidata, chunk): chunk for chunk in chunks}
-            for future in as_completed(futures):
-                chunk = futures[future]
-                try:
-                    fetched = wikidata_rows_to_facts(future.result())
-                except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
-                    print(f"Wikidata trivia unavailable for {len(chunk)} film(s): {exc}", flush=True)
-                    continue
-                with _trivia_cache_lock:
-                    for imdb_id in chunk:
-                        item_facts = fetched.get(imdb_id, [])
-                        _trivia_cache[imdb_id] = {
-                            "expires": time.monotonic() + WIKIDATA_CACHE_SECONDS,
-                            "facts": item_facts,
-                        }
-                        result[imdb_id] = item_facts
-    return result
-
-
 def movie_fact_pool(
     movie: dict[str, Any],
     genre: str,
@@ -940,21 +617,17 @@ def create_hidden_draw(
     range_movies: list[dict[str, Any]],
     all_movies: list[dict[str, Any]],
 ) -> tuple[str, list[dict[str, str]]]:
-    trivia_candidates = RNG.sample(genre_movies, min(10, len(genre_movies)))
-    researched_facts = fetch_researched_facts(trivia_candidates)
-    external_facts = fetch_wikidata_facts(trivia_candidates)
-    trivia_rich_movies = [
+    research_candidates = RNG.sample(genre_movies, min(10, len(genre_movies)))
+    researched_facts = fetch_researched_facts(research_candidates)
+    researched_movies = [
         movie
-        for movie in trivia_candidates
+        for movie in research_candidates
         if any(
             not fact_mentions_movie_title(movie, fact)
-            for fact in (
-                researched_facts.get(movie_research_key(movie), [])
-                + external_facts.get(movie_imdb_id(movie) or "", [])
-            )
+            for fact in researched_facts.get(movie_research_key(movie), [])
         )
     ]
-    chosen_movies = RNG.sample(trivia_rich_movies, min(6, len(trivia_rich_movies)))
+    chosen_movies = RNG.sample(researched_movies, min(6, len(researched_movies)))
     minimum_choices = min(2, len(genre_movies))
     if len(chosen_movies) < minimum_choices:
         chosen_ids = {id(movie) for movie in chosen_movies}
@@ -977,22 +650,11 @@ def create_hidden_draw(
             for fact in researched_facts.get(movie_research_key(movie), [])
             if not fact_mentions_movie_title(movie, fact)
         ]
-        external_pool = [
-            fact
-            for fact in external_facts.get(movie_imdb_id(movie) or "", [])
-            if not fact_mentions_movie_title(movie, fact)
-        ]
         fresh_researched = [
             fact for fact in researched_pool
             if fact["text"] not in previous_clues and fact["text"] not in used_texts
         ]
         unique_researched = [fact for fact in researched_pool if fact["text"] not in used_texts]
-        fresh_external = [
-            fact for fact in external_pool
-            if fact["text"] not in previous_clues and fact["text"] not in used_texts
-        ]
-        unique_external = [fact for fact in external_pool if fact["text"] not in used_texts]
-        unused_external = [fact for fact in fresh_external if fact["category"] not in used_categories]
         fresh_local = [
             fact for fact in local_pool
             if fact["text"] not in previous_clues and fact["text"] not in used_texts
@@ -1002,9 +664,6 @@ def create_hidden_draw(
         fact = RNG.choice(
             fresh_researched
             or unique_researched
-            or unused_external
-            or fresh_external
-            or unique_external
             or unused_local
             or fresh_local
             or unique_local
