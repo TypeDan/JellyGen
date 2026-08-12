@@ -162,7 +162,6 @@
     </section>
 
     <section class="result-wrap" id="result" aria-live="polite" aria-labelledby="movieTitle">
-      <p class="result-label"><span id="matchCount">Your film</span></p>
       <article class="movie-card">
         <div class="poster" id="poster"></div>
         <div class="movie-info">
@@ -229,7 +228,6 @@
     }
     function renderMovie(data) {
       const movie = data.movie;
-      document.querySelector('#matchCount').textContent = `${data.genre} · ${data.matchingMovies.toLocaleString()} possible film${data.matchingMovies === 1 ? '' : 's'}`;
       document.querySelector('#movieTitle').textContent = movie.title; document.querySelector('#overview').textContent = movie.overview;
       const tagline = document.querySelector('#tagline'); tagline.textContent = movie.tagline || ''; tagline.hidden = !movie.tagline;
       document.querySelector('#metaLine').replaceChildren(); addMeta(movie.year ? String(movie.year) : 'Year unknown'); addMeta(movie.runtimeMinutes ? `${movie.runtimeMinutes} min` : null); addMeta(movie.rating ? `★ ${Number(movie.rating).toFixed(1)}` : null); addMeta(movie.directors?.length ? `Dir. ${movie.directors.join(' & ')}` : null);
