@@ -1,3 +1,5 @@
+import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -41,6 +43,26 @@ class JellyGeneratorTests(unittest.TestCase):
         self.addCleanup(self.fact_path_patch.stop)
         app._draws.clear()
         app._recent_clues.clear()
+
+    def test_genre_rejects_non_integer_years_before_fetching(self):
+        for invalid in [1980.5, True, "1980", None]:
+            with self.subTest(year=invalid):
+                body = json.dumps({"startYear": invalid, "endYear": 1999}).encode()
+                handler = object.__new__(app.Handler)
+                handler.path = "/api/genre"
+                handler.headers = {"Content-Length": str(len(body))}
+                handler.rfile = io.BytesIO(body)
+                with patch.object(handler, "send_error_json") as error, patch.object(app, "fetch_movies") as fetch:
+                    handler.do_POST()
+                self.assertEqual(error.call_args.args[0], 400)
+                fetch.assert_not_called()
+
+    def test_head_home_with_query_returns_html_headers(self):
+        handler = object.__new__(app.Handler)
+        handler.path = "/?preview=1"
+        with patch.object(handler, "send_bytes") as send:
+            handler.do_HEAD()
+        self.assertEqual(send.call_args.args, (200, app.INDEX_HTML, "text/html; charset=utf-8"))
 
     def test_movie_year_prefers_production_year(self):
         self.assertEqual(app.movie_year(MOVIES[0]), 1987)
@@ -202,6 +224,13 @@ class JellyGeneratorTests(unittest.TestCase):
         self.assertIn(movie["Id"], {MOVIES[0]["Id"], second["Id"]})
         self.assertEqual(fact["text"], wildcards[0]["description"])
         self.assertEqual((genre, count), ("Comedy", 2))
+
+    def test_draw_fills_six_distinct_movies_without_researched_facts(self):
+        movies = [dict(MOVIES[0], Id=f"{number:032x}", Name=f"Secret Feature {number}") for number in range(8)]
+        draw_id, choices = app.create_hidden_draw("Comedy", movies, movies, movies)
+        self.assertEqual(len(choices), 6)
+        revealed_ids = {app.reveal_hidden_wildcard(draw_id, choice["id"])[0]["Id"] for choice in choices}
+        self.assertEqual(len(revealed_ids), 6)
 
     def test_each_draw_uses_new_opaque_ids(self):
         second = {**MOVIES[0], "Id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "Name": "Another Secret Film"}

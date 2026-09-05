@@ -3,125 +3,188 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#08090d">
+  <meta name="theme-color" content="#0736a0">
+  <meta name="description" content="A little mystery for movie night. Choose an era, follow a clue, and discover a film from your Jellyfin library.">
   <title>JellyGen</title>
   <style>
-    :root {
-      color-scheme: dark;
-      --bg: #08090d;
-      --panel: rgba(19, 21, 29, .84);
-      --panel-strong: #151821;
-      --ink: #f6f3ea;
-      --muted: #999dab;
-      --line: rgba(255, 255, 255, .1);
-      --red: #ff4d5e;
-      --amber: #ffbd59;
-      --mint: #69e5c0;
-      --shadow: 0 30px 90px rgba(0, 0, 0, .45);
-    }
-
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      color: var(--ink);
-      background:
-        radial-gradient(circle at 10% 0, rgba(255, 77, 94, .18), transparent 32rem),
-        radial-gradient(circle at 93% 25%, rgba(255, 189, 89, .08), transparent 34rem),
-        var(--bg);
-      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      opacity: .28;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.1'/%3E%3C/svg%3E");
-      mix-blend-mode: soft-light;
-    }
-    button, input { font: inherit; }
-    button, a { -webkit-tap-highlight-color: transparent; }
-    .shell { width: min(1120px, calc(100% - 32px)); margin: auto; padding: 24px 0 52px; position: relative; }
-    header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 54px; }
-    .brand { display: inline-flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; font-weight: 850; letter-spacing: -.04em; }
-    .mark { width: 39px; height: 39px; display: grid; place-items: center; border-radius: 13px; color: #090a0e; background: linear-gradient(135deg, var(--red), var(--amber)); box-shadow: 0 10px 35px rgba(255, 77, 94, .22); }
-    .mark svg { width: 24px; }
-    .library-status { border: 1px solid var(--line); background: rgba(255,255,255,.035); color: var(--muted); border-radius: 999px; padding: 9px 13px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
-    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 14px currentColor; }
-    .dot.ready { background: var(--mint); } .dot.error { background: var(--red); }
-
-    .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(310px, .75fr); gap: 56px; align-items: center; min-height: 430px; }
-    h1 { margin: 0; max-width: 720px; font-size: clamp(3.3rem, 8.2vw, 7.2rem); line-height: .88; letter-spacing: -.075em; font-weight: 900; }
-    h1 span { color: transparent; -webkit-text-stroke: 1px rgba(246,243,234,.42); }
-    .picker { padding: 28px; border: 1px solid var(--line); border-radius: 27px; background: linear-gradient(145deg, rgba(29,32,43,.92), rgba(13,15,21,.88)); box-shadow: var(--shadow); }
-    .picker h2 { margin: 0 0 22px; font-size: 1.1rem; letter-spacing: -.02em; }
-    .year-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: end; }
-    .field label { display: block; margin: 0 0 8px; color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-spacing: .1em; font-weight: 750; }
-    .field input { width: 100%; height: 61px; padding: 0 14px; border: 1px solid var(--line); border-radius: 15px; outline: none; background: rgba(0,0,0,.2); color: var(--ink); font-size: 1.12rem; font-weight: 750; }
-    .field input:focus { border-color: var(--red); box-shadow: 0 0 0 4px rgba(255,77,94,.11); }
-    .range-dash { height: 61px; display: grid; place-items: center; color: var(--muted); }
-    .surprise { width: 100%; min-height: 60px; margin-top: 17px; border: 0; border-radius: 16px; color: #090a0e; background: linear-gradient(115deg, var(--red), var(--amber)); font-weight: 900; cursor: pointer; box-shadow: 0 15px 45px rgba(255,77,94,.18); transition: transform .18s ease, filter .18s ease; }
-    .surprise:hover { transform: translateY(-2px); filter: brightness(1.06); }
-    button:disabled { cursor: wait; opacity: .58; }
-    .message { min-height: 0; margin: 12px 0 0; color: #ff91a0; display: none; line-height: 1.45; }
-    .message.show { display: block; }
-
-    .genre-stage, .result-wrap { display: none; margin-top: 70px; scroll-margin-top: 20px; }
-    .genre-stage.show, .result-wrap.show { display: block; animation: rise .42s ease both; }
-    .result-label { display: flex; align-items: center; gap: 13px; margin: 0 0 13px; color: var(--muted); font-size: .72rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
-    .result-label::after { content: ""; height: 1px; flex: 1; background: var(--line); }
-    .genre-shell { padding: 34px; border: 1px solid var(--line); border-radius: 29px; background: rgba(18,20,27,.82); box-shadow: var(--shadow); }
-    .genre-name { margin: 0 0 27px; font-size: clamp(2.7rem, 8vw, 6.4rem); line-height: .9; letter-spacing: -.065em; }
-    .wildcard-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
-    .wildcard-card { min-height: 190px; padding: 21px; border: 1px solid var(--line); border-radius: 20px; text-align: left; color: var(--ink); background: rgba(255,255,255,.025); cursor: pointer; display: grid; align-content: start; gap: 11px; transition: transform .18s ease, border-color .18s ease, background .18s ease; }
-    .wildcard-card:hover { transform: translateY(-4px); border-color: rgba(255,189,89,.5); background: rgba(255,189,89,.055); }
-    .wildcard-card .icon { font-size: 1.8rem; }
-    .wildcard-card strong { font-size: 1rem; }
-    .wildcard-card > span:last-child { color: var(--muted); font-size: .91rem; line-height: 1.48; }
-    .genre-actions, .result-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; justify-content: flex-end; }
-    .again { border: 1px solid var(--line); border-radius: 999px; padding: 11px 16px; background: rgba(255,255,255,.035); color: var(--ink); text-decoration: none; cursor: pointer; }
-    .again.primary { border-color: transparent; background: var(--ink); color: #0a0b0f; font-weight: 800; }
-
-    .movie-card { display: grid; grid-template-columns: minmax(260px, .72fr) 1.35fr; overflow: hidden; border: 1px solid var(--line); border-radius: 29px; background: var(--panel-strong); box-shadow: var(--shadow); }
-    .poster { min-height: 510px; background: #0d0f14; }
-    .poster img { width: 100%; height: 100%; min-height: 510px; object-fit: cover; display: block; }
-    .poster-fallback { min-height: 510px; display: grid; place-items: center; font-size: 4rem; }
-    .movie-info { padding: clamp(26px, 5vw, 56px); }
-    .meta-line, .genres { display: flex; flex-wrap: wrap; gap: 8px; }
-    .meta-line span, .genre { color: var(--muted); padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: .76rem; }
-    .movie-title { margin: 20px 0 10px; font-size: clamp(2.5rem, 6vw, 5.7rem); line-height: .92; letter-spacing: -.06em; }
-    .tagline { color: var(--amber); font-weight: 680; }
-    .overview { color: #c6c7ce; line-height: 1.72; }
-    .wildcard { margin-top: 30px; padding: 20px; display: grid; grid-template-columns: auto 1fr; gap: 15px; border-radius: 18px; background: rgba(255,77,94,.075); border: 1px solid rgba(255,77,94,.18); }
-    .wildcard-icon { font-size: 1.75rem; }
-    .wildcard h3 { margin: 0 0 6px; } .wildcard p { margin: 0; color: #d2d2d7; line-height: 1.5; }
-    footer { margin-top: 54px; display: flex; justify-content: space-between; color: #6f727d; font-size: .77rem; }
-    [hidden] { display: none !important; }
-    @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
-
-    @media (max-width: 820px) {
-      header { margin-bottom: 38px; }
-      .hero { grid-template-columns: 1fr; gap: 35px; min-height: 0; }
-      .wildcard-grid { grid-template-columns: 1fr; }
-      .wildcard-card { min-height: 0; }
-      .movie-card { grid-template-columns: 1fr; }
-      .poster, .poster img, .poster-fallback { min-height: 420px; max-height: 72vh; }
-    }
-    @media (max-width: 560px) {
-      .shell { width: min(100% - 22px, 1120px); padding-top: 14px; }
-      header { align-items: flex-start; }
-      .library-status { max-width: 58%; font-size: .72rem; }
-      h1 { font-size: clamp(3.05rem, 17vw, 5rem); }
-      .picker, .genre-shell { padding: 21px; border-radius: 22px; }
-      .year-grid { gap: 7px; }
-      .field input { padding: 0 9px; }
-      .movie-info { padding: 25px 20px; }
-      .result-actions { justify-content: stretch; }
-      .result-actions .again { flex: 1 1 auto; text-align: center; }
-    }
-    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
+    :root { color-scheme: dark; --bg:#171628; --panel:#23213a; --ink:#fff9ed; --muted:#c4bfd6; --line:#ffffff26; --accent:#dcf875; --amber:#ffcd71; --mint:#91efc5; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at 1px 1px,#ffffff0c 1px,transparent 0) 0 0 / 22px 22px,var(--bg); color:var(--ink); font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    button,input,a { -webkit-tap-highlight-color:transparent; }
+    button,input { font:inherit; }
+    button,a { touch-action:manipulation; }
+    button { cursor:pointer; }
+    button:disabled { cursor:wait; opacity:.5; }
+    a { color:inherit; }
+    :focus-visible { outline:2px solid var(--accent); outline-offset:5px; }
+    .shell { width:min(1120px,calc(100% - 64px)); margin:auto; padding:28px 0; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:20px; padding-bottom:24px; border-bottom:1px solid var(--line); }
+    .brand { display:flex; align-items:center; gap:10px; font-size:21px; font-weight:750; letter-spacing:-.7px; text-decoration:none; }
+    .mark { display:grid; place-items:center; width:36px; height:36px; border-radius:11px; background:var(--accent); color:var(--bg); }
+    .mark svg { width:25px; }
+    .library-status { display:flex; align-items:center; gap:9px; border:1px solid var(--line); border-radius:30px; padding:10px 14px; background:#ffffff03; color:var(--muted); font-size:12px; }
+    .dot { width:6px; height:6px; border-radius:50%; background:var(--amber); flex-shrink:0; }
+    .dot.ready { background:var(--mint); } .dot.error { background:#f3969e; }
+    .hero { display:grid; grid-template-columns:1.15fr 1fr; gap:70px; align-items:center; padding:70px 0 58px; }
+    .eyebrow,.result-label,.picker-kicker { font-size:10px; font-weight:650; text-transform:uppercase; letter-spacing:2.3px; color:var(--accent); }
+    .eyebrow { display:flex; align-items:center; gap:10px; margin:0 0 22px; }
+    .eyebrow::before { content:""; width:22px; height:1px; background:var(--accent); }
+    h1 { margin:0; font:900 clamp(56px,6.6vw,82px)/.99 "Arial Rounded MT Bold",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:-4px; }
+    h1 span { display:inline-block; color:var(--accent); transform:rotate(-3deg); text-shadow:4px 5px 0 #0005; }
+    .hero-copy { max-width:370px; margin:24px 0 0; color:var(--muted); font-size:15px; line-height:1.8; }
+    .picker { padding:30px; border:2px solid #0d0c19; border-radius:24px; background:#b9a2fa; color:#211834; box-shadow:8px 8px 0 #090914; position:relative; }
+    .picker-kicker { margin:0 0 22px; color:#43345f; font-weight:800; }
+    .picker h2 { font-size:30px; font-weight:850; letter-spacing:-.6px; margin:0 0 8px; }
+    .picker-copy { color:#43345f; font-size:13px; margin:0 0 25px; line-height:1.5; }
+    .year-grid { display:grid; grid-template-columns:1fr auto 1fr; gap:13px; align-items:end; }
+    .field { min-width:0; }
+    .field label { display:block; font-size:11px; font-weight:800; color:#43345f; letter-spacing:1.4px; text-transform:uppercase; margin-bottom:9px; }
+    .field input { width:100%; height:58px; border:2px solid #211834; border-radius:12px; padding:0 14px; background:#fff9ed; color:#211834; font-size:25px; font-weight:800; font-variant-numeric:tabular-nums; }
+    .range-dash { height:58px; display:grid; place-items:center; color:#211834; }
+    .presets { display:flex; flex-wrap:wrap; gap:6px; margin:14px 0 24px; }
+    .preset { border:1px solid #21183460; border-radius:8px; padding:8px 11px; color:#302044; background:#ffffff20; font-size:12px; font-weight:700; }
+    .preset:hover,.preset[aria-pressed="true"] { color:#211834; border-color:#211834; background:#fff9ed; }
+    .surprise { width:100%; min-height:57px; border:2px solid #211834; border-radius:12px; box-shadow:0 5px 0 #211834; color:#21182f; background:var(--accent); font-weight:850; transition:background .2s,transform .2s; }
+    .surprise:hover { background:#e9ff9d; transform:translateY(-2px) rotate(-1deg); }
+    .surprise:active { transform:translateY(4px); box-shadow:0 1px 0 #211834; }
+    .picker-note { text-align:center; color:#43345f; font-size:11px; margin:15px 0 0; }
+    .steps { list-style:none; padding:24px 0; margin:0; display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--line); border-bottom:1px solid var(--line); gap:24px; }
+    .steps li { display:flex; align-items:center; gap:14px; }
+    .step-number { display:grid; place-items:center; width:36px; height:36px; flex-shrink:0; border-radius:10px; font-size:14px; font-weight:900; color:#211834; background:var(--accent); transform:rotate(-7deg); }
+    .steps li:nth-child(2) .step-number { background:#b9a2fa; transform:rotate(5deg); }
+    .steps li:nth-child(3) .step-number { background:#ffb6a4; }
+    .steps strong { display:block; font-size:12px; font-weight:550; margin-bottom:5px; }
+    .steps small { color:var(--muted); font-size:11px; }
+    .message { display:none; color:#ffabb2; font-size:13px; line-height:1.6; margin:15px 0 0; } .message.show { display:block; }
+    .genre-stage,.result-wrap { display:none; margin-top:45px; scroll-margin-top:25px; }
+    .genre-stage.show,.result-wrap.show { display:block; animation:rise .35s ease both; }
+    .result-label { display:flex; align-items:center; gap:15px; margin:0 0 20px; }
+    .result-label::after { content:""; height:1px; background:var(--line); flex:1; }
+    .genre-name { font:900 clamp(40px,6vw,64px)/1.1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; margin:0 0 12px; letter-spacing:-2px; }
+    .stage-copy { color:var(--muted); font-size:14px; margin:0 0 25px; line-height:1.6; }
+    .wildcard-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+    .wildcard-card { position:relative; min-height:235px; border:2px solid #0d0c19; border-radius:20px; box-shadow:4px 5px 0 #090914; padding:24px; background:#ffcd71; color:#211834; text-align:left; display:flex; flex-direction:column; align-items:flex-start; gap:14px; transition:transform .2s,border-color .2s; }
+    .wildcard-card:nth-child(3n+2) { background:#b9a2fa; }
+    .wildcard-card:nth-child(3n) { background:#91dfcf; }
+    .wildcard-card:hover { transform:translateY(-6px) rotate(-1deg); border-color:#fff9ed; }
+    .wildcard-card .icon { font-size:30px; display:grid; place-items:center; width:54px; height:54px; border-radius:16px; background:#fff9ed90; transform:rotate(-6deg); }
+    .wildcard-card strong { font-size:19px; font-weight:850; }
+    .wildcard-card .description { font-size:14px; color:#43345f; line-height:1.7; }
+    .card-action { width:100%; padding-top:15px; margin-top:auto; border-top:2px dashed #21183440; color:#211834; font-weight:850; font-size:12px; }
+    .genre-actions,.result-actions { display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; margin-top:22px; }
+    .again { border:1px solid #ffffff24; border-radius:8px; padding:12px 17px; background:transparent; color:var(--ink); font-size:12px; text-decoration:none; }
+    .again:hover { border-color:var(--accent); }
+    .again.primary { background:var(--accent); border-color:var(--accent); color:#21182f; font-weight:650; }
+    .movie-card { display:grid; grid-template-columns:minmax(220px,.65fr) 1fr; border:1px solid var(--line); border-radius:18px; overflow:hidden; background:var(--panel); }
+    .poster { background:linear-gradient(145deg,#392a4c,#19151f); }
+    .poster img { width:100%; height:100%; object-fit:cover; display:block; }
+    .poster-fallback { min-height:440px; height:100%; display:grid; place-items:center; font-size:70px; }
+    .movie-info { padding:36px; min-width:0; }
+    .meta-line,.genres { display:flex; flex-wrap:wrap; gap:8px; }
+    .meta-line span,.genre { color:var(--muted); font-size:11px; padding:6px 9px; border:1px solid var(--line); border-radius:5px; }
+    .movie-title { font:850 clamp(34px,4vw,58px)/1.05 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:-1.5px; margin:22px 0 12px; overflow-wrap:anywhere; }
+    .tagline { color:var(--amber); font-size:14px; line-height:1.5; }
+    .overview { color:var(--muted); font-size:14px; line-height:1.8; }
+    .wildcard { margin-top:25px; padding:20px; border:1px solid #c1a0fa28; border-radius:10px; background:#c1a0fa08; display:grid; grid-template-columns:auto 1fr; gap:12px; }
+    .wildcard-icon { font-size:22px; } .wildcard h3 { font-size:14px; margin:0 0 8px; } .wildcard p { font-size:13px; color:var(--muted); margin:0; line-height:1.7; }
+    .source-link { display:inline-block; color:var(--accent); font-size:12px; margin-top:12px; }
+    footer { display:flex; justify-content:space-between; gap:20px; color:#928a9d; font-size:11px; margin-top:38px; }
+    [hidden] { display:none !important; }
+    @keyframes rise { from { opacity:0; transform:translateY(10px); } }
+    /* Option two: the neighbourhood video store. */
+    :root { color-scheme:light; --bg:#f6efdf; --panel:#fffaf0; --ink:#202f64; --muted:#626577; --line:#202f642b; --accent:#c64031; --amber:#a03a2f; --mint:#38785b; }
+    body { background:var(--bg); }
+    .shell { width:min(1160px,calc(100% - 64px)); padding-top:22px; }
+    header { border-bottom:3px solid var(--ink); padding-bottom:18px; }
+    .brand { font-size:28px; font-weight:900; letter-spacing:-1.5px; text-transform:uppercase; }
+    .mark { border-radius:50%; width:42px; height:42px; background:var(--accent); color:var(--bg); }
+    .library-status { border:1px solid #202f6450; background:transparent; color:var(--ink); border-radius:3px; font-family:monospace; }
+    .hero { grid-template-columns:1.15fr 1fr; gap:70px; padding:52px 0 40px; }
+    .eyebrow { letter-spacing:1.6px; color:var(--accent); font-size:11px; }
+    .eyebrow::before { width:22px; height:3px; }
+    h1 { font:900 clamp(65px,7.4vw,100px)/.88 Impact,"Arial Narrow",sans-serif; letter-spacing:-2px; text-transform:uppercase; }
+    h1 span { transform:none; color:var(--accent); text-shadow:none; }
+    .hero-copy { max-width:370px; font-size:15px; line-height:1.7; margin-top:23px; }
+    .jelly-friends { display:none; }
+    .rental-stamp { display:inline-block; margin-top:24px; padding:8px 13px; border:2px solid var(--ink); border-radius:50%; font-family:monospace; font-size:12px; font-weight:800; transform:rotate(-8deg); }
+    .picker { padding:30px; background:var(--panel); color:var(--ink); border:2px solid var(--ink); border-radius:2px; box-shadow:7px 7px 0 #202f6422; }
+    .picker::before { content:"MEMBERSHIP: MOVIE NIGHT"; display:block; border-bottom:2px dashed #202f6460; margin:-10px 0 25px; padding-bottom:16px; color:var(--accent); font:bold 12px monospace; letter-spacing:3px; text-align:center; }
+    .picker-kicker { color:var(--muted); font:11px monospace; letter-spacing:1.4px; margin-bottom:12px; }
+    .picker h2 { font-size:30px; font-weight:850; }
+    .picker-copy { color:var(--muted); }
+    .field label { color:var(--ink); font-family:monospace; }
+    .field input { border:1px solid var(--ink); border-radius:0; color:var(--ink); background:var(--bg); font:700 26px monospace; }
+    .range-dash { color:var(--ink); }
+    .presets { gap:7px; }
+    .preset { border:1px solid #202f6450; color:var(--ink); border-radius:2px; background:transparent; font:12px monospace; padding:8px 9px; }
+    .preset:hover,.preset[aria-pressed="true"] { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+    .surprise { background:var(--accent); color:#fffaf0; border:2px solid var(--accent); border-radius:2px; box-shadow:0 4px 0 #8d2c23; text-transform:uppercase; letter-spacing:1px; font-size:14px; }
+    .surprise:hover { background:#af3427; transform:translateY(-2px); }
+    .surprise:active { box-shadow:none; transform:translateY(3px); }
+    .picker-note { color:var(--muted); font:11px monospace; margin-top:18px; }
+    .steps { border-top:3px solid var(--ink); border-bottom:1px solid var(--ink); padding:22px 0; }
+    .step-number,.steps li:nth-child(2) .step-number,.steps li:nth-child(3) .step-number { background:transparent; transform:none; color:var(--accent); font:bold 25px monospace; border-right:1px solid var(--line); border-radius:0; width:44px; }
+    .steps strong { text-transform:uppercase; letter-spacing:.6px; font-weight:800; }
+    .result-label { font-family:monospace; font-size:12px; color:var(--accent); }
+    .genre-name { font-family:Impact,"Arial Narrow",sans-serif; text-transform:uppercase; font-weight:900; }
+    .wildcard-grid { gap:20px; }
+    .wildcard-card,.wildcard-card:nth-child(3n+2),.wildcard-card:nth-child(3n) { color:var(--ink); background:var(--panel); border:1px solid var(--ink); border-top:9px solid var(--ink); border-radius:2px; box-shadow:4px 4px 0 #202f6422; }
+    .wildcard-card:nth-child(3n+2) { border-top-color:var(--accent); }
+    .wildcard-card:nth-child(3n) { border-top-color:#d0a33c; }
+    .wildcard-card:hover { border-color:var(--accent); transform:translateY(-4px); }
+    .wildcard-card .icon { background:var(--bg); border:1px solid var(--line); border-radius:50%; transform:none; }
+    .wildcard-card strong { font-weight:850; font-size:19px; }
+    .wildcard-card .description { color:var(--muted); }
+    .card-action { border-top:1px dashed var(--ink); color:var(--accent); text-transform:uppercase; font:700 11px monospace; }
+    .again { border:1px solid var(--ink); border-radius:2px; color:var(--ink); background:var(--panel); }
+    .again.primary { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+    .movie-card { border:2px solid var(--ink); border-radius:2px; box-shadow:6px 6px 0 #202f6422; }
+    .poster { background:#202f64; }
+    .movie-title { text-transform:uppercase; font-family:Impact,"Arial Narrow",sans-serif; }
+    .meta-line span,.genre { border-radius:2px; }
+    .wildcard { border-color:var(--line); background:var(--bg); border-radius:2px; }
+    .wildcard p { color:var(--muted); }
+    .picker :focus-visible { outline-color:var(--ink); }
+    .message,.picker .message { color:#a32325; }
+    footer { color:var(--muted); font:11px monospace; }
+    /* Blockbuster-inspired video night. */
+    :root { color-scheme:dark; --bg:#0736a0; --panel:#062b82; --ink:#ffdc38; --muted:#dae5ff; --line:#ffdc3860; --accent:#ffdc38; --amber:#ffdc38; --mint:#96f2be; }
+    body { background:radial-gradient(ellipse at top,#124eb6,transparent 65%),var(--bg); }
+    header { border-bottom:2px solid var(--accent); padding-bottom:25px; }
+    .brand { position:relative; padding:12px 22px; border:3px solid var(--accent); transform:rotate(-5deg); font-family:Impact,"Arial Narrow",sans-serif; font-size:32px; font-weight:900; letter-spacing:1px; background:#062b82; clip-path:polygon(0 0,100% 0,100% 20%,95% 30%,100% 40%,100% 60%,95% 70%,100% 80%,100% 100%,0 100%,0 80%,5% 70%,0 60%,0 40%,5% 30%,0 20%); }
+    .brand::after { content:"VIDEO CLUB"; font:700 8px monospace; letter-spacing:2px; position:absolute; bottom:2px; left:50%; transform:translateX(-50%); white-space:nowrap; }
+    .mark { display:none; }
+    .library-status { border-color:#ffdc3870; color:#fff3b5; background:#062b8250; }
+    h1 { color:#fff7d2; } h1 span { color:var(--accent); text-shadow:4px 4px 0 #032369; }
+    .eyebrow { color:var(--accent); }
+    .rental-stamp { color:var(--accent); border-color:var(--accent); }
+    .picker { background:var(--accent); color:#062b82; border:3px solid #032369; box-shadow:8px 8px 0 #032369; }
+    .picker::before { color:#062b82; border-color:#062b8270; }
+    .picker-kicker,.picker-copy,.picker-note { color:#14366f; }
+    .field label,.range-dash { color:#062b82; }
+    .field input { border:2px solid #062b82; background:#fff6c9; color:#062b82; color-scheme:light; }
+    .preset { border-color:#062b8280; color:#062b82; }
+    .preset:hover,.preset[aria-pressed="true"] { background:#062b82; color:#ffdc38; border-color:#062b82; }
+    .surprise { background:#062b82; border-color:#062b82; color:#ffdc38; box-shadow:0 4px 0 #021841; }
+    .surprise:hover { background:#1046a8; }
+    .picker :focus-visible { outline-color:#062b82; }
+    .steps { border-color:var(--accent); }
+    .step-number,.steps li:nth-child(2) .step-number,.steps li:nth-child(3) .step-number { color:var(--accent); }
+    .wildcard-card,.wildcard-card:nth-child(3n+2),.wildcard-card:nth-child(3n) { background:#062b82; color:#ffdc38; border:2px solid #ffdc38; border-top:12px solid #ffdc38; box-shadow:5px 5px 0 #032369; }
+    .wildcard-card .icon { background:#fff5c6; border:0; }
+    .wildcard-card .description { color:#dae5ff; }
+    .wildcard-card:hover { background:#0b3b9f; }
+    .card-action { border-color:#ffdc3860; color:#ffdc38; }
+    .again { background:#062b82; color:#ffdc38; border-color:#ffdc38; }
+    .again.primary { background:#ffdc38; color:#062b82; border-color:#ffdc38; }
+    .movie-card { border-color:#ffdc38; box-shadow:6px 6px 0 #032369; }
+    .poster { background:#032369; }
+    .wildcard { background:#0736a0; }
+    .message { color:#ffb5bb; }
+    footer { color:#c7d9ff; }
+    @media(max-width:820px) { .hero { gap:30px; } h1 { font-size:60px; } .picker { padding:23px; } .wildcard-grid { grid-template-columns:1fr; } .wildcard-card { min-height:190px; } .movie-info { padding:25px; } }
+    @media(max-width:640px) { .shell { width:calc(100% - 36px); padding-top:19px; } header { gap:10px; } .brand { font-size:18px; } .library-status { max-width:58%; font-size:10px; padding:9px 11px; } .hero { grid-template-columns:1fr; padding:38px 0 30px; gap:30px; } h1 { font-size:60px; letter-spacing:-3px; } .hero-copy { font-size:14px; margin-top:18px; } .eyebrow { margin-bottom:17px; } .steps { gap:15px; } .steps li { align-items:flex-start; gap:8px; } .steps small { display:none; } .steps strong { line-height:1.6; font-size:11px; } .step-number { font-size:20px; } .movie-card { grid-template-columns:1fr; } .poster { max-height:500px; } .poster img { max-height:500px; object-fit:contain; } .result-actions .again { flex:1 1 auto; text-align:center; } footer { font-size:10px; } }
+    @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
   </style>
 </head>
 <body>
@@ -136,24 +199,42 @@
 
     <section class="hero" aria-labelledby="mainTitle">
       <div>
-        <h1 id="mainTitle">Pick a year range.<br><span>Find tonight’s film.</span></h1>
+        <p class="eyebrow">Your Friday night starts here</p>
+        <h1 id="mainTitle">Make it a<br><span>movie night.</span></h1>
+        <div class="jelly-friends" aria-hidden="true"><span class="jelly"><i></i><i></i><b></b></span><span class="jelly mini"><i></i><i></i><b></b></span><span class="spark">✦</span><span class="friend-note">Let fate pick.</span></div>
+        <div class="rental-stamp">NO LATE FEES. EVER.</div>
       </div>
       <form class="picker" id="pickerForm">
-        <h2>Choose the years</h2>
+        <p class="picker-kicker">Your ticket to something good</p>
+        <h2>Find your next rental.</h2>
+        <p class="picker-copy">Choose a year range. We’ll draw the genre.</p>
         <div class="year-grid">
           <div class="field"><label for="startYear">From</label><input id="startYear" name="startYear" type="number" inputmode="numeric" min="1888" max="2100" value="1980" required></div>
           <span class="range-dash" aria-hidden="true">→</span>
           <div class="field"><label for="endYear">To</label><input id="endYear" name="endYear" type="number" inputmode="numeric" min="1888" max="2100" value="1999" required></div>
         </div>
-        <button class="surprise" id="surpriseButton" type="submit">Draw a genre</button>
+        <div class="presets" aria-label="Quick year ranges">
+          <button class="preset" type="button" data-years="1980,1989">80s</button>
+          <button class="preset" type="button" data-years="1990,1999">90s</button>
+          <button class="preset" type="button" data-years="2000,2009">2000s</button>
+          <button class="preset" type="button" data-years="2010,2019">2010s</button>
+          <button class="preset" type="button" data-years="all">All years</button>
+        </div>
+        <button class="surprise" id="surpriseButton" type="submit">Draw a genre →</button>
         <p class="message" id="errorMessage" role="alert"></p>
       </form>
     </section>
 
+    <ol class="steps" aria-label="How it works">
+      <li><span class="step-number">01</span><div><strong>Choose your era</strong><small>A decade. A lifetime. Your call.</small></div></li>
+      <li><span class="step-number">02</span><div><strong>Pick a wildcard</strong><small>Choose from the available clues.</small></div></li>
+      <li><span class="step-number">03</span><div><strong>Reveal the film</strong><small>See your pick and its details.</small></div></li>
+    </ol>
     <section class="genre-stage" id="genreStage" aria-live="polite" aria-labelledby="genreName">
-      <p class="result-label">Genre drawn</p>
+      <p class="result-label">02 / Your genre is</p>
       <div class="genre-shell">
-        <h2 class="genre-name" id="genreName"></h2>
+        <h2 class="genre-name" id="genreName" tabindex="-1"></h2>
+        <p class="stage-copy">Every clue leads to a different film. Pick your favourite. Reveal your movie.</p>
         <div class="wildcard-grid" id="wildcardGrid"></div>
         <p class="message" id="stageError" role="alert"></p>
         <div class="genre-actions"><button class="again" id="drawAgainButton" type="button">Try another genre ↻</button></div>
@@ -161,15 +242,16 @@
     </section>
 
     <section class="result-wrap" id="result" aria-live="polite" aria-labelledby="movieTitle">
+      <p class="result-label">03 / Tonight’s feature</p>
       <article class="movie-card">
         <div class="poster" id="poster"></div>
         <div class="movie-info">
           <div class="meta-line" id="metaLine"></div>
-          <h2 class="movie-title" id="movieTitle"></h2>
+          <h2 class="movie-title" id="movieTitle" tabindex="-1"></h2>
           <p class="tagline" id="tagline"></p>
           <div class="genres" id="genres" aria-label="Genres"></div>
           <p class="overview" id="overview"></p>
-          <aside class="wildcard"><div class="wildcard-icon" id="wildcardIcon" aria-hidden="true"></div><div><h3 id="wildcardTitle"></h3><p id="wildcardText"></p></div></aside>
+          <aside class="wildcard"><div class="wildcard-icon" id="wildcardIcon" aria-hidden="true"></div><div><h3 id="wildcardTitle"></h3><p id="wildcardText"></p><a class="source-link" id="sourceLink" target="_blank" rel="noopener noreferrer" hidden></a></div></aside>
         </div>
       </article>
       <div class="result-actions">
@@ -178,7 +260,7 @@
         <button class="again primary" id="newGenreButton" type="button">Start again ↻</button>
       </div>
     </section>
-    <footer><span>Powered by Jellyfin</span><span>Jellyfin connected</span></footer>
+    <footer><span>Powered by Jellyfin</span><span>BE KIND. REWIND.</span></footer>
   </main>
 
   <script>
@@ -195,17 +277,59 @@
     const statusText = document.querySelector('#statusText');
     let libraryMeta = null;
     let currentDraw = null;
+    let busy = false;
+    let metaLoading = false;
+    const presetButtons = [...document.querySelectorAll('[data-years]')];
+    const drawButtons = [button, document.querySelector('#drawAgainButton'), document.querySelector('#newGenreButton')];
+
+    function updatePresets() {
+      for (const preset of presetButtons) {
+        const range = preset.dataset.years === 'all'
+          ? [Number(startYear.min), Number(endYear.max)] : preset.dataset.years.split(',').map(Number);
+        preset.disabled = busy || range[1] < Number(startYear.min) || range[0] > Number(endYear.max);
+        preset.setAttribute('aria-pressed', String(Number(startYear.value) === Math.max(range[0], Number(startYear.min)) && Number(endYear.value) === Math.min(range[1], Number(endYear.max))));
+      }
+    }
+    function setBusy(value) {
+      busy = value;
+      for (const control of [...drawButtons, startYear, endYear, document.querySelector('#changeWildcardButton'), ...wildcardGrid.querySelectorAll('button')]) control.disabled = value;
+      form.setAttribute('aria-busy', String(value));
+      genreStage.setAttribute('aria-busy', String(value));
+      updatePresets();
+    }
+    function revealSection(section, heading) {
+      section.classList.add('show');
+      heading.focus({ preventScroll: true });
+      section.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
+    }
+    function safeLink(element, value, label) {
+      let url;
+      try { url = new URL(value); } catch { /* Missing or invalid source. */ }
+      const allowed = url && ['https:', 'http:'].includes(url.protocol);
+      element.hidden = !allowed;
+      if (allowed) element.href = url.href; else element.removeAttribute('href');
+      if (label) element.textContent = label;
+    }
+    for (const preset of presetButtons) preset.addEventListener('click', () => {
+      const range = preset.dataset.years === 'all' ? [Number(startYear.min), Number(endYear.max)] : preset.dataset.years.split(',').map(Number);
+      startYear.value = Math.max(range[0], Number(startYear.min));
+      endYear.value = Math.min(range[1], Number(endYear.max));
+      clearErrors(); updatePresets();
+    });
+    for (const input of [startYear, endYear]) input.addEventListener('input', () => { clearErrors(); updatePresets(); });
+    updatePresets();
 
     function setStatus(kind, text) { statusDot.className = `dot ${kind || ''}`; statusText.textContent = text; }
     function showError(message, target = errorMessage) { target.textContent = message; target.classList.add('show'); }
     function clearErrors() { for (const target of [errorMessage, stageError]) { target.textContent = ''; target.classList.remove('show'); } }
     function selectedRange() {
+      if (!form.reportValidity()) throw new Error('Choose years within the available range.');
       const from = Number(startYear.value); const to = Number(endYear.value);
       if (!Number.isInteger(from) || !Number.isInteger(to) || from > to) throw new Error('The start year needs to be before the end year.');
       return { startYear: from, endYear: to };
     }
     async function postJson(url, payload) {
-      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(30000) });
       let data; try { data = await response.json(); } catch { data = {}; }
       if (!response.ok) throw new Error(data.error || 'Jellyfin did not answer.');
       return data;
@@ -217,13 +341,14 @@
         const card = document.createElement('button'); card.className = 'wildcard-card'; card.type = 'button'; card.dataset.wildcard = wildcard.id; card.setAttribute('aria-label', `${wildcard.title}: ${wildcard.description}`);
         const icon = document.createElement('span'); icon.className = 'icon'; icon.textContent = wildcard.icon;
         const title = document.createElement('strong'); title.textContent = wildcard.title;
-        const description = document.createElement('span'); description.textContent = wildcard.description;
-        card.append(icon, title, description); card.addEventListener('click', () => pickWithWildcard(wildcard.id)); wildcardGrid.appendChild(card);
+        const description = document.createElement('span'); description.className = 'description'; description.textContent = wildcard.description;
+        const action = document.createElement('span'); action.className = 'card-action'; action.textContent = 'Play this mystery →'; action.setAttribute('aria-hidden', 'true');
+        card.append(icon, title, description, action); card.addEventListener('click', () => pickWithWildcard(wildcard.id)); wildcardGrid.appendChild(card);
       }
     }
     function renderGenre(data, range) {
       currentDraw = { ...range, drawId: data.drawId, genre: data.genre, wildcards: data.wildcards };
-      document.querySelector('#genreName').textContent = data.genre; renderWildcards(data.wildcards); result.classList.remove('show'); genreStage.classList.remove('show'); void genreStage.offsetWidth; genreStage.classList.add('show'); genreStage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.querySelector('#genreName').textContent = data.genre; renderWildcards(data.wildcards); result.classList.remove('show'); revealSection(genreStage, document.querySelector('#genreName'));
     }
     function renderMovie(data) {
       const movie = data.movie;
@@ -234,30 +359,36 @@
       const poster = document.querySelector('#poster'); poster.replaceChildren(); const fallback = () => { poster.replaceChildren(); const tile = document.createElement('div'); tile.className = 'poster-fallback'; tile.textContent = '🎞️'; poster.appendChild(tile); };
       if (movie.posterUrl) { const image = new Image(); image.src = `${movie.posterUrl}?v=${encodeURIComponent(movie.id)}`; image.alt = `Poster for ${movie.title}`; image.onerror = fallback; poster.appendChild(image); } else fallback();
       document.querySelector('#wildcardIcon').textContent = movie.wildcard.icon; document.querySelector('#wildcardTitle').textContent = movie.wildcard.title; document.querySelector('#wildcardText').textContent = movie.wildcard.text;
-      const imdbLink = document.querySelector('#imdbLink'); imdbLink.hidden = !movie.imdbUrl; imdbLink.href = movie.imdbUrl || '#';
-      result.classList.remove('show'); void result.offsetWidth; result.classList.add('show'); result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      safeLink(document.querySelector('#imdbLink'), movie.imdbUrl);
+      safeLink(document.querySelector('#sourceLink'), movie.wildcard.sourceUrl, `${movie.wildcard.sourceLabel || 'Read the source'} ↗`);
+      genreStage.classList.remove('show'); revealSection(result, document.querySelector('#movieTitle'));
     }
     async function drawGenre() {
+      if (busy) return;
       clearErrors(); let range; try { range = selectedRange(); } catch (error) { showError(error.message); return; }
-      button.disabled = true; button.textContent = 'Drawing…';
-      try { renderGenre(await postJson('/api/genre', range), range); } catch (error) { showError(error.message || 'Could not draw a genre.'); }
-      finally { button.disabled = false; button.textContent = 'Draw a genre'; }
+      setBusy(true); button.textContent = 'Drawing…';
+      try { renderGenre(await postJson('/api/genre', range), range); } catch (error) { showError(error.name === 'TimeoutError' ? 'The draw took too long. Please try again.' : error.message || 'Could not draw a genre.'); errorMessage.scrollIntoView({ block: 'center' }); }
+      finally { setBusy(false); button.textContent = 'Draw a genre →'; }
     }
     async function pickWithWildcard(wildcard) {
-      if (!currentDraw) return; clearErrors(); for (const card of wildcardGrid.querySelectorAll('button')) card.disabled = true;
+      if (!currentDraw || busy) return; clearErrors(); setBusy(true);
       try { renderMovie(await postJson('/api/pick', { drawId: currentDraw.drawId, wildcard })); }
       catch (error) { showError(error.message || 'That clue could not choose a film.', stageError); }
-      finally { for (const card of wildcardGrid.querySelectorAll('button')) card.disabled = false; }
+      finally { setBusy(false); }
     }
     form.addEventListener('submit', event => { event.preventDefault(); drawGenre(); });
     document.querySelector('#drawAgainButton').addEventListener('click', drawGenre); document.querySelector('#newGenreButton').addEventListener('click', drawGenre);
-    document.querySelector('#changeWildcardButton').addEventListener('click', () => { result.classList.remove('show'); genreStage.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    document.querySelector('#changeWildcardButton').addEventListener('click', () => { result.classList.remove('show'); revealSection(genreStage, document.querySelector('#genreName')); });
     async function loadMeta(retries = 2) {
+      if (metaLoading) return;
+      metaLoading = true;
+      document.querySelector('#statusButton').disabled = true;
       setStatus('', 'Connecting…'); let lastError;
       for (let attempt = 0; attempt <= retries; attempt += 1) {
-        try { const response = await fetch('/api/meta', { cache: 'no-store' }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Jellyfin unavailable'); libraryMeta = data; startYear.min = data.minYear; startYear.max = data.maxYear; endYear.min = data.minYear; endYear.max = data.maxYear; setStatus('ready', `${data.movieCount.toLocaleString()} films · ${data.minYear}–${data.maxYear}`); return; }
+        try { const response = await fetch('/api/meta', { cache: 'no-store', signal: AbortSignal.timeout(25000) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Jellyfin unavailable'); libraryMeta = data; startYear.min = data.minYear; startYear.max = data.maxYear; endYear.min = data.minYear; endYear.max = data.maxYear; for (const input of [startYear, endYear]) input.value = Math.min(data.maxYear, Math.max(data.minYear, Number(input.value))); updatePresets(); metaLoading = false; document.querySelector('#statusButton').disabled = false; clearErrors(); setStatus('ready', `${data.movieCount.toLocaleString()} films · ${data.minYear}–${data.maxYear}`); return; }
         catch (error) { lastError = error; if (attempt < retries) await new Promise(resolve => setTimeout(resolve, 800 * (attempt + 1))); }
       }
+      metaLoading = false; document.querySelector('#statusButton').disabled = false;
       setStatus('error', 'Jellyfin needs attention'); showError(lastError?.message || 'Could not connect to Jellyfin.');
     }
     document.querySelector('#statusButton').addEventListener('click', () => loadMeta(2)); document.addEventListener('visibilitychange', () => { if (!document.hidden && !libraryMeta) loadMeta(1); }); loadMeta(2);

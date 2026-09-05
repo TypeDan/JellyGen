@@ -45,6 +45,7 @@ _recent_clues: dict[str, set[str]] = {}
 _fact_db_lock = threading.Lock()
 DRAW_TTL_SECONDS = 30 * 60
 MAX_ACTIVE_DRAWS = 200
+DRAW_SIZE = 6
 MAX_ENRICHMENT_BATCH = 250
 MAX_RESEARCHED_FACTS_PER_MOVIE = 3
 
@@ -627,8 +628,8 @@ def create_hidden_draw(
             for fact in researched_facts.get(movie_research_key(movie), [])
         )
     ]
-    chosen_movies = RNG.sample(researched_movies, min(6, len(researched_movies)))
-    minimum_choices = min(2, len(genre_movies))
+    chosen_movies = RNG.sample(researched_movies, min(DRAW_SIZE, len(researched_movies)))
+    minimum_choices = min(DRAW_SIZE, len(genre_movies))
     if len(chosen_movies) < minimum_choices:
         chosen_ids = {id(movie) for movie in chosen_movies}
         remaining = [movie for movie in genre_movies if id(movie) not in chosen_ids]
@@ -786,9 +787,10 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def do_HEAD(self) -> None:
-        if urlparse(self.path).path in ("/", "/health"):
-            body = INDEX_HTML if self.path == "/" else b'{"status":"ok"}'
-            content_type = "text/html; charset=utf-8" if self.path == "/" else "application/json; charset=utf-8"
+        path = urlparse(self.path).path
+        if path in ("/", "/health"):
+            body = INDEX_HTML if path == "/" else b'{"status":"ok"}'
+            content_type = "text/html; charset=utf-8" if path == "/" else "application/json; charset=utf-8"
             self.send_bytes(HTTPStatus.OK, body, content_type)
         else:
             self.send_error_json(HTTPStatus.NOT_FOUND, "Not found.")
@@ -934,8 +936,10 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         try:
-            start_year = int(payload["startYear"])
-            end_year = int(payload["endYear"])
+            start_year = payload["startYear"]
+            end_year = payload["endYear"]
+            if type(start_year) is not int or type(end_year) is not int:
+                raise ValueError("Years must be whole numbers.")
         except (KeyError, TypeError, ValueError):
             self.send_error_json(HTTPStatus.BAD_REQUEST, "Choose a valid start and end year.")
             return
