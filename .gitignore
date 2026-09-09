@@ -5,3 +5,16 @@ facts.db-shm
 facts.db-wal
 __pycache__/
 outputs/
+
+# Local configuration and private runtime data
+.env
+.env.*
+!.env.example
+*.env
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+.venv/
