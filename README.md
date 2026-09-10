@@ -4,7 +4,7 @@ JellyGen is a dependency-free Python web app for settling movie night from a Jel
 
 ## Quick start
 
-Requires Python 3.10 or later and access to a Jellyfin server. No third-party Python packages are needed.
+Runs on Windows, macOS, and Linux with Python 3.10 or later and access to a Jellyfin server. No third-party Python packages are needed. Other Unix systems with Python and SQLite should also work, but are not included in automated testing. Use a current browser. The OpenRC service at the end of this guide is optional and Linux-specific.
 
 1. Clone or download this repository and open a terminal in its directory.
 2. Copy `.env.example` to `.env` and set `JELLYFIN_URL` and `JELLYFIN_API_KEY` for your own Jellyfin server. Create the API key in your Jellyfin dashboard.
@@ -18,7 +18,17 @@ set +a
 python3 app.py
 ```
 
-Open `http://localhost:8787`. On Windows, set the same environment variables in PowerShell before running `python app.py`. The application reads environment variables; it does not automatically load `.env` files.
+On Windows, open PowerShell in the repository directory and set the environment variables directly (no `.env` file is needed):
+
+```powershell
+$env:JELLYFIN_URL = 'http://localhost:8096'
+$env:JELLYFIN_API_KEY = 'replace-with-your-jellyfin-api-key'
+python app.py
+```
+
+Use your own Jellyfin URL and API key. If Python is installed through the Windows launcher, `py -3 app.py` also works. Optional settings use the same syntax, for example `$env:FACT_DB_PATH = 'C:\JellyGen\facts.db'`; choose a directory your account can write to.
+
+Open `http://localhost:8787`. Stop the app with Ctrl+C. The application reads environment variables; it does not automatically load `.env` files. macOS/Linux shell commands in this guide use `python3`; on Windows use `python` or `py -3` and enter multi-line enrichment commands on one line, omitting the shell continuation backslashes. For token files on Windows, restrict access using Windows file permissions instead of `chmod`.
 
 ## Configuration
 
@@ -74,6 +84,8 @@ Run the tests with:
 ```sh
 python3 -m unittest -v
 ```
+
+The tests exercise database cleanup, HTTP endpoints, and draw logic without requiring a real Jellyfin server. On Windows, run `python -m unittest -v`.
 
 ## Optional OpenRC deployment
 

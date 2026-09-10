@@ -1,9 +1,12 @@
 import io
 import json
+import sqlite3
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.request import urlopen
 
 import app
 
@@ -43,6 +46,44 @@ class JellyGeneratorTests(unittest.TestCase):
         self.addCleanup(self.fact_path_patch.stop)
         app._draws.clear()
         app._recent_clues.clear()
+
+    def test_http_server_serves_health_and_home(self):
+        with app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler) as server:
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base_url = f"http://127.0.0.1:{server.server_port}"
+                with urlopen(f"{base_url}/health", timeout=5) as response:
+                    self.assertEqual(json.load(response), {"status": "ok"})
+                with urlopen(base_url, timeout=5) as response:
+                    self.assertEqual(response.read(), app.INDEX_HTML)
+            finally:
+                server.shutdown()
+                thread.join(timeout=5)
+
+    def test_database_connections_are_closed_after_use(self):
+        connections = []
+        connect = sqlite3.connect
+
+        def track_connection(*args, **kwargs):
+            connection = connect(*args, **kwargs)
+            connections.append(connection)
+            return connection
+
+        with patch.object(app.sqlite3, "connect", side_effect=track_connection):
+            app.mark_movie_researched(MOVIES[0])
+            self.assertIn("tt1234567", app.researched_movie_keys())
+        self.assertTrue(connections)
+        for connection in connections:
+            with self.assertRaises(sqlite3.ProgrammingError):
+                connection.execute("SELECT 1")
+
+    def test_non_ascii_enrichment_credentials_are_rejected(self):
+        handler = object.__new__(app.Handler)
+        handler.headers = {"Authorization": "Bearer invalid-\u00e9"}
+        with patch.object(app, "ENRICHMENT_TOKEN", "test-token"), patch.object(handler, "send_error_json") as error:
+            self.assertFalse(handler.enrichment_authorized())
+        self.assertEqual(error.call_args.args[0], 403)
 
     def test_genre_rejects_non_integer_years_before_fetching(self):
         for invalid in [1980.5, True, "1980", None]:

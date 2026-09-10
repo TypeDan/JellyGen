@@ -13,6 +13,7 @@ import sqlite3
 import threading
 import time
 from collections import Counter
+from contextlib import closing
 from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -230,7 +231,7 @@ def movie_research_key(movie: dict[str, Any]) -> str:
 
 def init_fact_db() -> None:
     FACT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with _fact_db_lock, sqlite3.connect(FACT_DB_PATH, timeout=5) as connection:
+    with _fact_db_lock, closing(sqlite3.connect(FACT_DB_PATH, timeout=5)) as connection, connection:
         connection.executescript(
             """
             CREATE TABLE IF NOT EXISTS researched_facts (
@@ -284,7 +285,7 @@ def init_fact_db() -> None:
 
 def researched_fact_counts() -> dict[str, int]:
     init_fact_db()
-    with _fact_db_lock, sqlite3.connect(FACT_DB_PATH, timeout=5) as connection:
+    with _fact_db_lock, closing(sqlite3.connect(FACT_DB_PATH, timeout=5)) as connection, connection:
         rows = connection.execute(
             "SELECT movie_key, COUNT(*) FROM researched_facts GROUP BY movie_key"
         ).fetchall()
@@ -293,7 +294,7 @@ def researched_fact_counts() -> dict[str, int]:
 
 def researched_movie_keys() -> set[str]:
     init_fact_db()
-    with _fact_db_lock, sqlite3.connect(FACT_DB_PATH, timeout=5) as connection:
+    with _fact_db_lock, closing(sqlite3.connect(FACT_DB_PATH, timeout=5)) as connection, connection:
         rows = connection.execute("SELECT movie_key FROM researched_movies").fetchall()
     return {str(row[0]) for row in rows}
 
@@ -304,7 +305,7 @@ def fetch_researched_facts(movies: list[dict[str, Any]]) -> dict[str, list[dict[
         return {}
     init_fact_db()
     placeholders = ",".join("?" for _ in keys)
-    with _fact_db_lock, sqlite3.connect(FACT_DB_PATH, timeout=5) as connection:
+    with _fact_db_lock, closing(sqlite3.connect(FACT_DB_PATH, timeout=5)) as connection, connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(
             f"""
@@ -336,7 +337,7 @@ def mark_researched_fact_used(fact: dict[str, Any]) -> None:
     if not isinstance(fact_id, int):
         return
     init_fact_db()
-    with _fact_db_lock, sqlite3.connect(FACT_DB_PATH, timeout=5) as connection:
+    with _fact_db_lock, closing(sqlite3.connect(FACT_DB_PATH, timeout=5)) as connection, connection:
         connection.execute(
             """
             UPDATE researched_facts
@@ -382,7 +383,7 @@ def pending_research_movies(movies: list[dict[str, Any]], limit: int) -> dict[st
 
 def mark_movie_researched(movie: dict[str, Any]) -> bool:
     init_fact_db()
-    with _fact_db_lock, sqlite3.connect(FACT_DB_PATH, timeout=5) as connection:
+    with _fact_db_lock, closing(sqlite3.connect(FACT_DB_PATH, timeout=5)) as connection, connection:
         cursor = connection.execute(
             """
             INSERT OR IGNORE INTO researched_movies (
@@ -406,7 +407,7 @@ def reopen_empty_researched_movies(movies: list[dict[str, Any]]) -> int:
         return 0
     init_fact_db()
     placeholders = ",".join("?" for _ in keys)
-    with _fact_db_lock, sqlite3.connect(FACT_DB_PATH, timeout=5) as connection:
+    with _fact_db_lock, closing(sqlite3.connect(FACT_DB_PATH, timeout=5)) as connection, connection:
         cursor = connection.execute(
             f"""
             DELETE FROM researched_movies
@@ -451,7 +452,7 @@ def validate_researched_fact(movie: dict[str, Any], payload: dict[str, Any]) -> 
 def store_researched_fact(movie: dict[str, Any], payload: dict[str, Any]) -> bool:
     fact = validate_researched_fact(movie, payload)
     init_fact_db()
-    with _fact_db_lock, sqlite3.connect(FACT_DB_PATH, timeout=5) as connection:
+    with _fact_db_lock, closing(sqlite3.connect(FACT_DB_PATH, timeout=5)) as connection, connection:
         existing_count = int(
             connection.execute(
                 "SELECT COUNT(*) FROM researched_facts WHERE movie_key = ?",
@@ -781,7 +782,7 @@ class Handler(BaseHTTPRequestHandler):
             return False
         provided = self.headers.get("Authorization", "")
         expected = f"Bearer {ENRICHMENT_TOKEN}"
-        if not hmac.compare_digest(provided, expected):
+        if not hmac.compare_digest(provided.encode("utf-8"), expected.encode("utf-8")):
             self.send_error_json(HTTPStatus.FORBIDDEN, "Invalid enrichment credentials.")
             return False
         return True
